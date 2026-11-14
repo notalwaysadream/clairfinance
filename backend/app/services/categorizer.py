@@ -1,8 +1,12 @@
 import re
-from typing import Dict, List, Optional, Tuple
+import logging
+from typing import Dict, List, Optional, Tuple, Any
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.svm import LinearSVC
 from sklearn.pipeline import Pipeline
+from app.services.gemini_client import gemini_client
+
+logger = logging.getLogger(__name__)
 
 KEYWORD_RULES = {
     # Salary / Income
@@ -107,15 +111,25 @@ KEYWORD_RULES = {
 }
 
 class TransactionCategorizer:
+    """
+    3-Tier Cascading Transaction Categorization Engine:
+    Tier 1: High-precision Keyword and Prefix Rules.
+    Tier 2: Machine Learning Classifier (TF-IDF + LinearSVC).
+    Tier 3: Google Gemini LLM fallback for ambiguous descriptions.
+    Includes active learning feedback loop to record user corrections and adapt over time.
+    """
+
     def __init__(self):
+        self.user_corrections: Dict[str, str] = {}
+        self.additional_training_samples: List[Tuple[str, str]] = []
         self._build_keyword_index()
         self._train_ml_fallback()
 
     def _clean_text(self, text: str) -> str:
         s = str(text).lower()
-        # Remove common bank prefixes
+        # Remove common bank transaction prefixes
         s = re.sub(r"^(upi|pos|neft|imps|rtgs|ach|auto-debit|cr|dr)[-\s:]+", "", s)
-        # Strip extraneous punctuation and numbers
+        # Strip extraneous punctuation and numeric codes
         s = re.sub(r"[\d\-_/]+", " ", s)
         return re.sub(r"\s+", " ", s).strip()
 
@@ -124,7 +138,7 @@ class TransactionCategorizer:
         for category, keywords in KEYWORD_RULES.items():
             for kw in keywords:
                 self.exact_rules.append((kw.lower(), category))
-        # Sort by longest keyword first so more specific patterns match before generic ones
+        # Sort by longest keyword first for maximal specificity
         self.exact_rules.sort(key=lambda x: len(x[0]), reverse=True)
 
     def _train_ml_fallback(self):
@@ -134,11 +148,15 @@ class TransactionCategorizer:
             for kw in keywords:
                 corpus.append(kw)
                 labels.append(category)
-                # Augmented examples
                 corpus.append(f"upi {kw} payment")
                 labels.append(category)
                 corpus.append(f"pos {kw} store")
                 labels.append(category)
+
+        # Incorporate dynamically learned user corrections
+        for text, cat in self.additional_training_samples:
+            corpus.append(text)
+            labels.append(cat)
 
         self.pipeline = Pipeline([
             ("tfidf", TfidfVectorizer(ngram_range=(1, 2), min_df=1)),
@@ -146,15 +164,43 @@ class TransactionCategorizer:
         ])
         self.pipeline.fit(corpus, labels)
 
+    def record_user_correction(self, raw_description: str, category_name: str):
+        """
+        Active learning hook: saves user-edited category mapping and updates
+        the classifier training corpus for future classification consistency.
+        """
+        clean = self._clean_text(raw_description)
+        desc_lower = raw_description.lower().strip()
+        self.user_corrections[desc_lower] = category_name
+        if clean:
+            self.user_corrections[clean] = category_name
+            self.additional_training_samples.append((clean, category_name))
+
+        # Periodic retraining when sufficient corrections accumulate
+        if len(self.additional_training_samples) % 5 == 0:
+            try:
+                self._train_ml_fallback()
+                logger.info(
+                    f"Retrained ML classifier with {len(self.additional_training_samples)} user corrections."
+                )
+            except Exception as e:
+                logger.warning(f"Incremental retraining failed: {e}")
+
     def categorize(self, description: str, txn_type: str = "debit") -> Tuple[str, float]:
         """
-        Categorizes a transaction string.
+        Categorizes a single transaction using Tier 1 rules and Tier 2 ML classifier.
         Returns (category_name, confidence).
         """
-        desc_lower = str(description).lower()
+        desc_lower = str(description).lower().strip()
         clean_desc = self._clean_text(description)
 
-        # Salary / Income prioritization if credit
+        # Active Learning Check: direct match with user corrections
+        if desc_lower in self.user_corrections:
+            return self.user_corrections[desc_lower], 1.0
+        if clean_desc in self.user_corrections:
+            return self.user_corrections[clean_desc], 0.98
+
+        # Prioritize Income / Salary keywords if transaction is credit
         if txn_type == "credit":
             for kw in ["salary", "payroll", "acme", "employer", "stipend", "bonus"]:
                 if kw in desc_lower:
@@ -182,5 +228,59 @@ class TransactionCategorizer:
             pass
 
         return "Miscellaneous", 0.50
+
+    async def categorize_batch_with_llm(
+        self,
+        transactions: List[Dict[str, Any]],
+        available_categories: List[str]
+    ) -> List[Tuple[str, float]]:
+        """
+        Runs the full 3-tier cascade on a batch of transactions.
+        Unresolved or low-confidence transactions are submitted to Gemini Flash.
+        """
+        results: List[Tuple[str, float]] = []
+        ambiguous_indices: List[int] = []
+        ambiguous_descriptions: List[str] = []
+
+        # Tiers 1 and 2
+        for idx, txn in enumerate(transactions):
+            desc = txn.get("description", "")
+            ttype = txn.get("type", "debit")
+            cat, conf = self.categorize(desc, txn_type=ttype)
+            results.append((cat, conf))
+
+            # Flag ambiguous items for Tier 3 LLM fallback
+            if conf <= 0.60 or cat == "Miscellaneous":
+                ambiguous_indices.append(idx)
+                ambiguous_descriptions.append(desc)
+
+        # Tier 3: Gemini LLM Fallback (batch limit up to 25 items per request)
+        if gemini_client.is_available and ambiguous_descriptions:
+            try:
+                batch_to_send = ambiguous_descriptions[:25]
+                llm_response = await gemini_client.batch_categorize_transactions(
+                    batch_to_send,
+                    available_categories
+                )
+
+                valid_cats = {c.lower(): c for c in available_categories}
+                for item in llm_response:
+                    if isinstance(item, dict) and "index" in item and "category" in item:
+                        item_idx = int(item["index"]) - 1
+                        assigned_cat = item["category"].strip()
+                        if 0 <= item_idx < len(ambiguous_indices):
+                            target_original_idx = ambiguous_indices[item_idx]
+                            matched_cat = valid_cats.get(assigned_cat.lower())
+                            if matched_cat:
+                                results[target_original_idx] = (matched_cat, 0.90)
+                                # Add to active learning memory
+                                self.record_user_correction(
+                                    ambiguous_descriptions[item_idx],
+                                    matched_cat
+                                )
+            except Exception as e:
+                logger.warning(f"Tier 3 Gemini categorization failed: {e}")
+
+        return results
 
 categorizer = TransactionCategorizer()

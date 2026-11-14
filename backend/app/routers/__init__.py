@@ -7,6 +7,8 @@ from app.routers.query import router as query_router
 from app.routers.simulator import router as simulator_router
 from app.routers.alerts import router as alerts_router
 from app.routers.history import router as history_router
+from app.routers.anomalies import router as anomalies_router
+from app.routers.categories import router as categories_router
 
 __all__ = [
     "auth_router",
@@ -18,4 +20,6 @@ __all__ = [
     "simulator_router",
     "alerts_router",
     "history_router",
+    "anomalies_router",
+    "categories_router",
 ]

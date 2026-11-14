@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ClairFinance - Backend Human Test Interface</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 20px;
+      line-height: 1.5;
+      background: #f9f9fb;
+      color: #1e1e24;
+    }
+    h1, h2, h3 { color: #111; margin-top: 1.2em; margin-bottom: 0.4em; }
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #fff;
+      padding: 12px 20px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      margin-bottom: 20px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      background: #e2e8f0;
+    }
+    .badge-success { background: #dcfce7; color: #166534; }
+    .badge-warning { background: #fef9c3; color: #854d0e; }
+    .badge-danger { background: #fee2e2; color: #991b1b; }
+    .section-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+    .flex-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    button {
+      padding: 8px 14px;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:hover { background: #1d4ed8; }
+    button.secondary { background: #64748b; }
+    button.secondary:hover { background: #475569; }
+    input, select, textarea {
+      padding: 8px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 13px;
+    }
+    th, td {
+      border: 1px solid #e2e8f0;
+      padding: 8px;
+      text-align: left;
+    }
+    th { background: #f1f5f9; font-weight: 600; }
+    pre {
+      background: #f8fafc;
+      padding: 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+    }
+    .stat-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 12px;
+      text-align: center;
+    }
+    .stat-val { font-size: 20px; font-weight: 700; color: #0f172a; margin-top: 4px; }
+  </style>
+</head>
+<body>
+
+  <div class="header-bar">
+    <div>
+      <h2 style="margin:0;">ClairFinance - Backend Test Interface</h2>
+      <small id="status-text">Checking backend connection...</small>
+    </div>
+    <div>
+      <label>Backend URL: </label>
+      <input type="text" id="api-base" value="http://localhost:8000/api" style="width: 200px;">
+      <button onclick="checkHealth()">Ping</button>
+    </div>
+  </div>
+
+  <!-- Persona Switcher -->
+  <div class="section-card">
+    <h3>1. Multi-Persona Switcher</h3>
+    <p>Select a persona to test distinct financial patterns (fixed salary, irregular freelance, or student allowance):</p>
+    <div class="flex-row">
+      <button onclick="switchPersona('salaried')">Salaried (Rahul Sharma)</button>
+      <button onclick="switchPersona('freelancer')">Freelancer (Priya Patel)</button>
+      <button onclick="switchPersona('student')">Student (Amit Verma)</button>
+      <button onclick="seedAll()" class="secondary">Seed All 3 Personas</button>
+    </div>
+    <div id="active-persona-display" style="margin-top: 12px;"></div>
+  </div>
+
+  <!-- Dashboard Overview -->
+  <div class="section-card">
+    <div class="flex-row" style="justify-content: space-between;">
+      <h3 style="margin:0;">2. Financial Dashboard & Analytics</h3>
+      <button onclick="loadDashboard()">Refresh Dashboard</button>
+    </div>
+    <div id="dashboard-stats" style="margin-top: 14px;"></div>
+    <div id="personality-container" style="margin-top: 14px;"></div>
+    <div id="benchmarks-container" style="margin-top: 14px;"></div>
+    <div id="streaks-container" style="margin-top: 14px;"></div>
+  </div>
+
+  <!-- Can I Afford This? -->
+  <div class="section-card">
+    <h3>3. "Can I Afford This?" AI Advisor</h3>
+    <p>Evaluate a purchase or loan commitment against the user's cash flow, debt burden, and history:</p>
+    <div class="grid-2">
+      <div>
+        <label>Item Name:</label><br>
+        <input type="text" id="q-item" value="Royal Enfield Himalayan 450" style="width: 100%;"><br><br>
+
+        <label>Estimated Price (₹):</label><br>
+        <input type="number" id="q-price" value="285000" style="width: 100%;"><br><br>
+
+        <label>Payment Method:</label><br>
+        <select id="q-method" style="width: 100%;">
+          <option value="emi">EMI (Equated Monthly Installment)</option>
+          <option value="one_time">One-Time Lump Sum</option>
+          <option value="loan">Bank Loan</option>
+        </select><br><br>
+
+        <div class="flex-row">
+          <div>
+            <label>Tenure (Months):</label><br>
+            <input type="number" id="q-tenure" value="24" style="width: 110px;">
+          </div>
+          <div>
+            <label>Interest Rate (%):</label><br>
+            <input type="number" id="q-rate" value="12.5" step="0.5" style="width: 110px;">
+          </div>
+        </div><br>
+
+        <label>Product Link (Optional):</label><br>
+        <input type="text" id="q-link" value="https://royalenfield.com/himalayan" style="width: 100%;"><br><br>
+
+        <label>Additional Notes / Constraints:</label><br>
+        <textarea id="q-notes" rows="2" style="width: 100%;">Planning for purchase before festive season.</textarea><br><br>
+
+        <button onclick="askAffordability()">Analyze Affordability</button>
+      </div>
+      <div>
+        <h4>Advisor Assessment Output</h4>
+        <div id="query-result-box" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:4px; padding:12px; min-height: 250px;">
+          <em>Submit an inquiry to see the AI financial analysis...</em>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Simulators -->
+  <div class="section-card">
+    <h3>4. Financial Simulators</h3>
+    <div class="flex-row" style="margin-bottom: 12px;">
+      <button onclick="showSimulatorTab('whatif')">What-If Scenario</button>
+      <button onclick="showSimulatorTab('emi-opt')">EMI Optimizer</button>
+      <button onclick="showSimulatorTab('loan')">Loan Amortization</button>
+      <button onclick="showSimulatorTab('purchase')">One-Time Purchase</button>
+      <button onclick="showSimulatorTab('goal')">Savings Goal</button>
+    </div>
+
+    <!-- What-If Tab -->
+    <div id="sim-whatif" class="sim-tab">
+      <h4>What-If Custom Scenario</h4>
+      <div class="flex-row">
+        <input type="text" id="wi-name" value="15% Salary Hike and New Flat" placeholder="Scenario Name" style="width: 220px;">
+        <input type="number" id="wi-inc" value="15" placeholder="Income Change %" style="width: 130px;">
+        <input type="number" id="wi-exp" value="4000" placeholder="Monthly Expense Delta" style="width: 160px;">
+        <input type="number" id="wi-inflow" value="30000" placeholder="One-Time Inflow" style="width: 130px;">
+        <input type="number" id="wi-months" value="12" placeholder="Months (1-24)" style="width: 100px;">
+        <button onclick="runWhatIf()">Simulate Scenario</button>
+      </div>
+      <div id="whatif-output" style="margin-top: 10px;"></div>
+    </div>
+
+    <!-- EMI Optimizer Tab -->
+    <div id="sim-emi-opt" class="sim-tab" style="display:none;">
+      <h4>EMI Debt Optimizer (Feature 15.7)</h4>
+      <div class="flex-row">
+        <input type="number" id="eo-amount" value="300000" placeholder="Proposed Loan (₹)">
+        <input type="number" id="eo-rate" value="12.0" step="0.5" placeholder="Interest Rate %">
+        <input type="number" id="eo-tenure" value="24" placeholder="Tenure (Months)">
+        <input type="number" id="eo-prepay" value="50000" placeholder="Down Payment Available (₹)">
+        <button onclick="runEMIOptimizer()">Optimize Debt Structure</button>
+      </div>
+      <div id="emi-opt-output" style="margin-top: 10px;"></div>
+    </div>
+
+    <!-- Loan Tab -->
+    <div id="sim-loan" class="sim-tab" style="display:none;">
+      <h4>Loan Amortization Calculator</h4>
+      <div class="flex-row">
+        <input type="number" id="ln-amt" value="500000" placeholder="Principal (₹)">
+        <input type="number" id="ln-rate" value="10.5" step="0.5" placeholder="Rate %">
+        <input type="number" id="ln-tenure" value="36" placeholder="Tenure (Months)">
+        <button onclick="runLoanSim()">Calculate Schedule</button>
+      </div>
+      <div id="loan-output" style="margin-top: 10px;"></div>
+    </div>
+
+    <!-- Purchase Tab -->
+    <div id="sim-purchase" class="sim-tab" style="display:none;">
+      <h4>One-Time Purchase Buffer Depletion</h4>
+      <div class="flex-row">
+        <input type="number" id="pc-amt" value="85000" placeholder="Purchase Amount (₹)">
+        <input type="text" id="pc-name" value="MacBook Pro" placeholder="Item Name">
+        <button onclick="runPurchaseSim()">Simulate Purchase</button>
+      </div>
+      <div id="purchase-output" style="margin-top: 10px;"></div>
+    </div>
+
+    <!-- Goal Tab -->
+    <div id="sim-goal" class="sim-tab" style="display:none;">
+      <h4>Savings Goal Timeline</h4>
+      <div class="flex-row">
+        <input type="number" id="gl-amt" value="300000" placeholder="Goal Target (₹)">
+        <input type="number" id="gl-monthly" value="15000" placeholder="Monthly Contribution (Optional)">
+        <button onclick="runGoalSim()">Calculate Timeline</button>
+      </div>
+      <div id="goal-output" style="margin-top: 10px;"></div>
+    </div>
+  </div>
+
+  <!-- Forecasting & Backtesting -->
+  <div class="section-card">
+    <h3>5. Time-Series Forecasting & Financial Time Machine</h3>
+    <div class="flex-row">
+      <button onclick="loadCashflowForecast()">3-Month Cash Flow Forecast</button>
+      <button onclick="loadCategoryForecasts()">Category Forecasts</button>
+      <button onclick="loadBacktest()">Financial Time Machine (Backtest)</button>
+      <button onclick="loadLiquidityCheck()">Liquidity Shortage Check</button>
+    </div>
+    <div id="forecast-output" style="margin-top: 12px;"></div>
+  </div>
+
+  <!-- Anomalies & Predictive Alerts -->
+  <div class="section-card">
+    <h3>6. Anomalies & Predictive Smart Alerts</h3>
+    <div class="flex-row">
+      <button onclick="loadAnomalies()">View Spending Anomalies</button>
+      <button onclick="loadAnomalyPatterns()">Anomaly Patterns</button>
+      <button onclick="loadAlerts()">View Alerts</button>
+      <button onclick="loadPredictiveAlerts()">Run Predictive Smart Alerts</button>
+    </div>
+    <div id="anomalies-output" style="margin-top: 12px;"></div>
+  </div>
+
+  <!-- Transactions Table & Upload -->
+  <div class="section-card">
+    <h3>7. Transactions & Bank Statement Upload</h3>
+    <div class="flex-row" style="margin-bottom: 12px;">
+      <input type="file" id="csv-file-input" accept=".csv">
+      <button onclick="uploadCSV()">Upload CSV Statement</button>
+      <button onclick="loadTransactions(1)" class="secondary">Load Transactions</button>
+    </div>
+    <div id="upload-status" style="margin-bottom: 10px;"></div>
+    <div id="transactions-table-container"></div>
+  </div>
+
+  <script>
+    let activeToken = localStorage.getItem("clairfinance_token") || "";
+    let activeCategories = [];
+
+    function getBaseUrl() {
+      return document.getElementById("api-base").value.trim().replace(/\/$/, "");
+    }
+
+    function authHeaders() {
+      const headers = { "Content-Type": "application/json" };
+      if (activeToken) {
+        headers["Authorization"] = "Bearer " + activeToken;
+      }
+      return headers;
+    }
+
+    async function checkHealth() {
+      const statusEl = document.getElementById("status-text");
+      try {
+        const res = await fetch(getBaseUrl().replace(/\/api$/, "") + "/api/health");
+        const data = await res.json();
+        if (data.status === "healthy") {
+          statusEl.innerHTML = `<span class="badge badge-success">Connected</span> ${data.app} (v${data.version})`;
+        } else {
+          statusEl.innerHTML = `<span class="badge badge-danger">Unhealthy</span>`;
+        }
+      } catch (err) {
+        statusEl.innerHTML = `<span class="badge badge-danger">Offline</span> Error: ${err.message}`;
+      }
+    }
+
+    async function loadCategories() {
+      try {
+        const res = await fetch(getBaseUrl() + "/categories");
+        activeCategories = await res.json();
+      } catch (e) {
+        console.error("Failed to load categories:", e);
+      }
+    }
+
+    async function switchPersona(pid) {
+      const display = document.getElementById("active-persona-display");
+      display.innerHTML = "<em>Switching persona and loading transaction dataset...</em>";
+      try {
+        const res = await fetch(`${getBaseUrl()}/personas/switch/${pid}`, { method: "POST" });
+        const data = await res.json();
+        if (res.ok) {
+          activeToken = data.access_token;
+          localStorage.setItem("clairfinance_token", activeToken);
+          display.innerHTML = `
+            <div style="background:#f1f5f9; padding:10px; border-radius:4px;">
+              <strong>Active Profile:</strong> ${data.active_persona.name} (${data.active_persona.role})<br>
+              <strong>Income Pattern:</strong> ${data.active_persona.income_pattern}<br>
+              <strong>Transactions Loaded:</strong> ${data.transactions_count} | 
+              <strong>Savings Rate:</strong> ${data.savings_rate}% | 
+              <strong>Health Score:</strong> ${data.health_score}/100 (${data.health_status})
+            </div>
+          `;
+          loadDashboard();
+        } else {
+          display.innerHTML = `<span style="color:red">Error: ${data.detail || "Switch failed"}</span>`;
+        }
+      } catch (err) {
+        display.innerHTML = `<span style="color:red">Request error: ${err.message}</span>`;
+      }
+    }
+
+    async function seedAll() {
+      const display = document.getElementById("active-persona-display");
+      display.innerHTML = "<em>Pre-seeding all 3 personas...</em>";
+      try {
+        const res = await fetch(`${getBaseUrl()}/personas/seed-all`, { method: "POST" });
+        const data = await res.json();
+        display.innerHTML = `<div class="badge badge-success">Success</div> ${data.message}`;
+      } catch (e) {
+        display.innerHTML = `<span style="color:red">Error: ${e.message}</span>`;
+      }
+    }
+
+    async function loadDashboard() {
+      const container = document.getElementById("dashboard-stats");
+      container.innerHTML = "<em>Loading dashboard data...</em>";
+      try {
+        const res = await fetch(`${getBaseUrl()}/dashboard/overview`, { headers: authHeaders() });
+        const data = await res.json();
+        if (!res.ok) {
+          container.innerHTML = `<span style="color:red">${data.detail || "Failed to load dashboard"}</span>`;
+          return;
+        }
+
+        container.innerHTML = `
+          <div class="grid-3">
+            <div class="stat-box">
+              <small>Total Income</small>
+              <div class="stat-val" style="color:#16a34a">₹${data.total_income.toLocaleString()}</div>
+            </div>
+            <div class="stat-box">
+              <small>Total Expenses</small>
+              <div class="stat-val" style="color:#dc2626">₹${data.total_expenses.toLocaleString()}</div>
+            </div>
+            <div class="stat-box">
+              <small>Net Savings (Rate)</small>
+              <div class="stat-val" style="color:#2563eb">₹${data.net_savings.toLocaleString()} (${data.savings_rate}%)</div>
+            </div>
+          </div>
+          <div style="margin-top:12px; display:flex; gap:12px; align-items:center;">
+            <strong>Health Score:</strong> <span class="badge ${data.health_score >= 60 ? 'badge-success' : 'badge-warning'}">${data.health_score}/100 (${data.health_status})</span>
+            <strong>Active Alerts:</strong> <span class="badge">${data.active_alerts_count}</span>
+          </div>
+        `;
+
+        loadPersonality();
+        loadBenchmarks();
+        loadStreaks();
+      } catch (err) {
+        container.innerHTML = `<span style="color:red">Error: ${err.message}</span>`;
+      }
+    }
+
+    async function loadPersonality() {
+      const pBox = document.getElementById("personality-container");
+      try {
+        const res = await fetch(`${getBaseUrl()}/dashboard/personality`, { headers: authHeaders() });
+        const p = await res.json();
+        if (res.ok) {
+          pBox.innerHTML = `
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:4px; padding:12px;">
+              <strong>Spending Archetype:</strong> ${p.title}<br>
+              <p style="margin:4px 0; font-size:13px;">${p.description}</p>
+              <small><strong>Strength:</strong> ${p.key_strength} | <strong>Vulnerability:</strong> ${p.key_vulnerability}</small><br>
+              <small style="color:#2563eb;"><strong>Advisor Tip:</strong> ${p.actionable_tip}</small>
+            </div>
+          `;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function loadBenchmarks() {
+      const bBox = document.getElementById("benchmarks-container");
+      try {
+        const res = await fetch(`${getBaseUrl()}/dashboard/benchmarks`, { headers: authHeaders() });
+        const b = await res.json();
+        if (res.ok) {
+          let rows = b.metrics.map(m => `
+            <tr>
+              <td>${m.metric_name}</td>
+              <td>${m.user_value}${m.unit}</td>
+              <td>${m.peer_average}${m.unit}</td>
+              <td>${m.top_percentile}${m.unit}</td>
+              <td><span class="badge ${m.status === 'ahead' ? 'badge-success' : 'badge-warning'}">${m.status}</span></td>
+            </tr>
+          `).join("");
+
+          bBox.innerHTML = `
+            <details style="margin-top:8px;">
+              <summary><strong>Peer Cohort Benchmarks</strong> (${b.cohort_name})</summary>
+              <p style="font-size:12px; margin:4px 0;">${b.cohort_description}</p>
+              <table>
+                <thead><tr><th>Metric</th><th>Your Value</th><th>Cohort Average</th><th>Top 20%</th><th>Status</th></tr></thead>
+                <tbody>${rows}</tbody>
+              </table>
+              <small><em>${b.cohort_insight}</em></small>
+            </details>
+          `;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function loadStreaks() {
+      const sBox = document.getElementById("streaks-container");
+      try {
+        const res = await fetch(`${getBaseUrl()}/dashboard/streaks`, { headers: authHeaders() });
+        const s = await res.json();
+        if (res.ok) {
+          let badges = s.milestones.map(m => `
+            <span class="badge ${m.achieved ? 'badge-success' : ''}" style="margin-right:6px;" title="${m.description}">
+              ${m.achieved ? '✓ ' : '○ '}${m.title}
+            </span>
+          `).join("");
+
+          sBox.innerHTML = `
+            <div style="margin-top:8px; font-size:13px;">
+              <strong>Savings Streak:</strong> ${s.current_streak_months} months current (Best: ${s.best_streak_months} months) | 
+              <strong>Milestones:</strong> ${badges}
+            </div>
+          `;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function askAffordability() {
+      const out = document.getElementById("query-result-box");
+      out.innerHTML = "<em>Analyzing financial affordability with AI and cashflow engine...</em>";
+
+      const payload = {
+        item_name: document.getElementById("q-item").value,
+        estimated_price: parseFloat(document.getElementById("q-price").value) || 0,
+        payment_method: document.getElementById("q-method").value,
+        emi_tenure_months: parseInt(document.getElementById("q-tenure").value) || 24,
+        interest_rate: parseFloat(document.getElementById("q-rate").value) || 12.5,
+        link: document.getElementById("q-link").value,
+        additional_context: document.getElementById("q-notes").value
+      };
+
+      try {
+        const res = await fetch(`${getBaseUrl()}/query/ask`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify(payload)
+        });
+        let d;
+        try {
+          d = await res.json();
+        } catch (jsonErr) {
+          const txt = await res.text();
+          out.innerHTML = `<span style="color:red">Server Error (${res.status}): ${txt || res.statusText}</span>`;
+          return;
+        }
+
+        if (!res.ok) {
+          out.innerHTML = `<span style="color:red">Error: ${d.detail || JSON.stringify(d)}</span>`;
+          return;
+        }
+
+        let badgeClass = "badge-success";
+        if (d.verdict === "risky") badgeClass = "badge-warning";
+        if (d.verdict === "not_recommended") badgeClass = "badge-danger";
+
+        let risksHtml = (d.risks || []).map(r => `<li>${r}</li>`).join("");
+        let altsHtml = (d.alternatives || []).map(a => `<li>${a}</li>`).join("");
+
+        out.innerHTML = `
+          <div>
+            <span class="badge ${badgeClass}" style="font-size:14px; text-transform:uppercase;">
+              ${d.verdict.replace(/_/g, " ")}
+            </span>
+            <span style="margin-left:10px; font-size:13px;">Confidence: <strong>${(d.confidence * 100).toFixed(0)}%</strong></span>
+          </div>
+          <p style="margin:8px 0; font-size:14px;"><strong>Summary:</strong> ${d.analysis}</p>
+          <div style="font-size:13px; background:#fff; padding:8px; border:1px solid #e2e8f0; border-radius:4px;">
+            <strong>Monthly Commitment:</strong> ₹${d.monthly_emi.toLocaleString()} | 
+            <strong>Projected Monthly Savings:</strong> ₹${d.impact.projected_monthly_savings.toLocaleString()} 
+            (${d.impact.savings_reduction_percent}% reduction)
+          </div>
+          ${risksHtml ? `<div style="font-size:13px; margin-top:8px;"><strong>Identified Risks:</strong><ul>${risksHtml}</ul></div>` : ''}
+          ${altsHtml ? `<div style="font-size:13px;"><strong>Recommended Alternatives:</strong><ul>${altsHtml}</ul></div>` : ''}
+          <small style="color:#64748b;"><strong>Reasoning:</strong> ${d.reasoning}</small>
+        `;
+      } catch (err) {
+        out.innerHTML = `<span style="color:red">Error: ${err.message}</span>`;
+      }
+    }
+
+    function showSimulatorTab(tabId) {
+      document.querySelectorAll(".sim-tab").forEach(t => t.style.display = "none");
+      const target = document.getElementById("sim-" + tabId);
+      if (target) target.style.display = "block";
+    }
+
+    async function runWhatIf() {
+      const out = document.getElementById("whatif-output");
+      out.innerHTML = "<em>Calculating scenario...</em>";
+      const payload = {
+        scenario_name: document.getElementById("wi-name").value,
+        income_change_percent: parseFloat(document.getElementById("wi-inc").value) || 0,
+        monthly_expense_change: parseFloat(document.getElementById("wi-exp").value) || 0,
+        one_time_inflow: parseFloat(document.getElementById("wi-inflow").value) || 0,
+        projection_months: parseInt(document.getElementById("wi-months").value) || 6
+      };
+      try {
+        const res = await fetch(`${getBaseUrl()}/simulator/what-if`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify(payload)
+        });
+        const d = await res.json();
+        out.innerHTML = `
+          <div style="background:#f8fafc; padding:10px; border:1px solid #e2e8f0; border-radius:4px; font-size:13px;">
+            <strong>Verdict:</strong> <span class="badge badge-success">${d.verdict}</span> | 
+            <strong>Annual Net Savings Delta:</strong> ₹${d.net_change_in_annual_savings.toLocaleString()}<br>
+            <strong>Simulated Monthly Surplus:</strong> ₹${d.simulated_monthly_savings.toLocaleString()} (Baseline: ₹${d.baseline_monthly_savings.toLocaleString()})
+            <ul>${d.insights.map(i => `<li>${i}</li>`).join("")}</ul>
+          </div>
+        `;
+      } catch (e) {
+        out.innerHTML = `<span style="color:red">Error: ${e.message}</span>`;
+      }
+    }
+
+    async function runEMIOptimizer() {
+      const out = document.getElementById("emi-opt-output");
+      out.innerHTML = "<em>Analyzing debt optimization options...</em>";
+      const payload = {
+        proposed_loan_amount: parseFloat(document.getElementById("eo-amount").value) || 0,
+        proposed_interest_rate: parseFloat(document.getElementById("eo-rate").value) || 12.0,
+        proposed_tenure_months: parseInt(document.getElementById("eo-tenure").value) || 24,
+        lump_sum_prepayment_available: parseFloat(document.getElementById("eo-prepay").value) || 0
+      };
+      try {
+        const res = await fetch(`${getBaseUrl()}/simulator/emi-optimizer`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify(payload)
+        });
+        const d = await res.json();
+        let rows = d.scenarios.map(s => `
+          <tr>
+            <td><strong>${s.title}</strong><br><small>${s.description}</small></td>
+            <td>₹${s.combined_monthly_emi.toLocaleString()}</td>
+            <td>₹${s.total_interest_payable.toLocaleString()}</td>
+            <td style="color:green">₹${s.interest_saved_vs_baseline.toLocaleString()}</td>
+            <td>${s.dti_ratio_percent}%</td>
+            <td><span class="badge ${s.recommendation_level === 'Highly Recommended' ? 'badge-success' : ''}">${s.recommendation_level}</span></td>
+          </tr>
+        `).join("");
+
+        out.innerHTML = `
+          <p style="font-size:13px; margin:4px 0;">${d.advisor_summary}</p>
+          <table>
+            <thead><tr><th>Strategy</th><th>Combined Monthly EMI</th><th>Total Interest</th><th>Interest Saved</th><th>DTI</th><th>Level</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        `;
+      } catch (e) {
+        out.innerHTML = `<span style="color:red">Error: ${e.message}</span>`;
+      }
+    }
+
+    async function runLoanSim() {
+      const out = document.getElementById("loan-output");
+      out.innerHTML = "<em>Calculating loan schedule...</em>";
+      const payload = {
+        loan_amount: parseFloat(document.getElementById("ln-amt").value) || 0,
+        interest_rate: parseFloat(document.getElementById("ln-rate").value) || 0,
+        tenure_months: parseInt(document.getElementById("ln-tenure").value) || 0
+      };
+      try {
+        const res = await fetch(`${getBaseUrl()}/simulator/loan`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify(payload)
+        });
+        const d = await res.json();
+        out.innerHTML = `
+          <div style="font-size:13px; background:#f8fafc; padding:8px; border:1px solid #e2e8f0; border-radius:4px;">
+            <strong>Monthly EMI:</strong> ₹${d.emi.toLocaleString()} | 
+            <strong>Total Interest:</strong> ₹${d.total_interest.toLocaleString()} | 
+            <strong>Total Payment:</strong> ₹${d.total_payment.toLocaleString()}
+          </div>
+        `;
+      } catch (e) {
+        out.innerHTML = `<span style="color:red">Error: ${e.message}</span>`;
+      }
+    }
+
+    async function runPurchaseSim() {
+      const out = document.getElementById("purchase-output");
+      out.innerHTML = "<em>Calculating buffer impact...</em>";
+      const payload = {
+        amount: parseFloat(document.getElementById("pc-amt").value) || 0,
+        item_name: document.getElementById("pc-name").value
+      };
+      try {
+        const res = await fetch(`${getBaseUrl()}/simulator/purchase`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify(payload)
+        });
+        const d = await res.json();
+        out.innerHTML = `
+          <div style="font-size:13px; background:#f8fafc; padding:8px; border:1px solid #e2e8f0; border-radius:4px;">
+            <strong>Verdict:</strong> <span class="badge ${d.is_safe ? 'badge-success' : 'badge-danger'}">${d.verdict}</span><br>
+            <strong>Buffer Before:</strong> ${d.emergency_buffer_before_months} months &rarr; 
+            <strong>Buffer After:</strong> ${d.emergency_buffer_after_months} months<br>
+            <strong>Recovery Timeline:</strong> ~${d.timeline_recovery_months} months
+            <ul>${d.recommendations.map(r => `<li>${r}</li>`).join("")}</ul>
+          </div>
+        `;
+      } catch (e) {
+        out.innerHTML = `<span style="color:red">Error: ${e.message}</span>`;
+      }
+    }
+
+    async function runGoalSim() {
+      const out = document.getElementById("goal-output");
+      out.innerHTML = "<em>Calculating goal feasibility...</em>";
+      const payload = {
+        goal_amount: parseFloat(document.getElementById("gl-amt").value) || 0,
+        monthly_contribution: parseFloat(document.getElementById("gl-monthly").value) || null
+      };
+      try {
+        const res = await fetch(`${getBaseUrl()}/simulator/savings-goal`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify(payload)
+        });
+        const d = await res.json();
+        out.innerHTML = `
+          <div style="font-size:13px; background:#f8fafc; padding:8px; border:1px solid #e2e8f0; border-radius:4px;">
+            <strong>Estimated Timeline:</strong> ${d.estimated_months_to_goal} months | 
+            <strong>Feasibility:</strong> <span class="badge badge-success">${d.feasibility}</span><br>
+            <strong>Monthly Required:</strong> ₹${d.required_monthly_savings.toLocaleString()}
+            <ul>${d.accelerators.map(a => `<li>${a}</li>`).join("")}</ul>
+          </div>
+        `;
+      } catch (e) {
+        out.innerHTML = `<span style="color:red">Error: ${e.message}</span>`;
+      }
+    }
+
+    async function loadCashflowForecast() {
+      const out = document.getElementById("forecast-output");
+      out.innerHTML = "<em>Generating cashflow forecast with confidence bands...</em>";
+      try {
+        const res = await fetch(`${getBaseUrl()}/forecast/cashflow?months=3`, { headers: authHeaders() });
+        const d = await res.json();
+        let rows = d.forecast.map(f => `
+          <tr>
+            <td>${f.month}</td>
+            <td>₹${f.predicted_income.toLocaleString()}</td>
+            <td>₹${f.predicted_expenses.toLocaleString()}</td>
+            <td>₹${f.net_savings.toLocaleString()}</td>
+            <td>₹${f.lower_bound.toLocaleString()} - ₹${f.upper_bound.toLocaleString()}</td>
+            <td>${(f.confidence * 100).toFixed(0)}%</td>
+          </tr>
+        `).join("");
+
+        out.innerHTML = `
+          <table>
+            <thead><tr><th>Month</th><th>Predicted Income</th><th>Predicted Expenses</th><th>Net Savings</th><th>Uncertainty Interval (80%)</th><th>Confidence</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        `;
+      } catch (e) {
+        out.innerHTML = `<span style="color:red">Error: ${e.message}</span>`;
+      }
+    }
+
+    async function loadCategoryForecasts() {
+      const out = document.getElementById("forecast-output");
+      out.innerHTML = "<em>Loading category spending forecasts...</em>";
+      try {
+        const res = await fetch(`${getBaseUrl()}/forecast/categories?months=3`, { headers: authHeaders() });
+        const list = await res.json();
+        let rows = list.map(c => `
+          <tr>
+            <td><strong>${c.category_name}</strong></td>
+            <td>₹${c.average_monthly_spend.toLocaleString()}</td>
+            <td>₹${c.next_month_predicted.toLocaleString()}</td>
+            <td><span class="badge ${c.trend === 'increasing' ? 'badge-warning' : (c.trend === 'decreasing' ? 'badge-success' : '')}">${c.trend} (${c.trend_percentage}%)</span></td>
+          </tr>
+        `).join("");
+
+        out.innerHTML = `
+          <table>
+            <thead><tr><th>Category</th><th>Avg Monthly Spend</th><th>Next Month Predicted</th><th>Trend Velocity</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        `;
+      } catch (e) {
+        out.innerHTML = `<span style="color:red">Error: ${e.message}</span>`;
+      }
+    }
+
+    async function loadBacktest() {
+      const out = document.getElementById("forecast-output");
+      out.innerHTML = "<em>Executing backtest against historical data (Financial Time Machine)...</em>";
+      try {
+        const res = await fetch(`${getBaseUrl()}/forecast/accuracy`, { headers: authHeaders() });
+        const d = await res.json();
+        let compRows = (d.comparison || []).map(c => `
+          <tr>
+            <td>${c.month}</td>
+            <td>₹${c.actual_expenses.toLocaleString()}</td>
+            <td>₹${c.predicted_expenses.toLocaleString()}</td>
+            <td>${c.error_percent}%</td>
+            <td><span class="badge badge-success">${c.accuracy_percent}%</span></td>
+          </tr>
+        `).join("");
+
+        out.innerHTML = `
+          <div style="margin-bottom:8px;">
+            <strong>Empirical Prediction Accuracy:</strong> <span class="badge badge-success" style="font-size:14px;">${d.accuracy_percent}%</span> 
+            (MAPE: ${d.mape}) - <em>${d.message}</em>
+          </div>
+          ${compRows ? `
+            <table>
+              <thead><tr><th>Month</th><th>Actual Expenses</th><th>Predicted Expenses</th><th>Error %</th><th>Accuracy %</th></tr></thead>
+              <tbody>${compRows}</tbody>
+            </table>
+          ` : ''}
+        `;
+      } catch (e) {
+        out.innerHTML = `<span style="color:red">Error: ${e.message}</span>`;
+      }
+    }
+
+    async function loadLiquidityCheck() {
+      const out = document.getElementById("forecast-output");
+      out.innerHTML = "<em>Checking 30-day liquidity risks...</em>";
+      try {
+        const res = await fetch(`${getBaseUrl()}/forecast/liquidity`, { headers: authHeaders() });
+        const d = await res.json();
+        out.innerHTML = `
+          <div style="background:#f8fafc; padding:10px; border:1px solid #e2e8f0; border-radius:4px; font-size:13px;">
+            <strong>Liquidity Status:</strong> 
+            <span class="badge ${d.is_shortage_risk ? 'badge-danger' : 'badge-success'}">
+              ${d.is_shortage_risk ? 'Shortage Risk Detected' : 'Safe Liquidity'}
+            </span><br>
+            <strong>Current Buffer:</strong> ₹${d.current_balance.toLocaleString()} | 
+            <strong>Upcoming 30d Commitments:</strong> ₹${d.upcoming_30d_commitments.toLocaleString()}<br>
+            <p style="margin:6px 0 0 0;">${d.warning_message}</p>
+          </div>
+        `;
+      } catch (e) {
+        out.innerHTML = `<span style="color:red">Error: ${e.message}</span>`;
+      }
+    }
+
+    async function loadAnomalies() {
+      const out = document.getElementById("anomalies-output");
+      out.innerHTML = "<em>Loading detected anomalies...</em>";
+      try {
+        const res = await fetch(`${getBaseUrl()}/anomalies`, { headers: authHeaders() });
+        const d = await res.json();
+        let rows = d.anomalies.map(a => `
+          <tr>
+            <td>${a.date}</td>
+            <td>${a.description}</td>
+            <td>₹${a.amount.toLocaleString()}</td>
+            <td>${a.category_name}</td>
+            <td><span class="badge ${a.severity === 'critical' ? 'badge-danger' : 'badge-warning'}">${a.severity} (${(a.anomaly_score * 100).toFixed(0)}%)</span></td>
+          </tr>
+        `).join("");
+
+        out.innerHTML = `
+          <strong>Total Flagged Anomalies:</strong> ${d.total_anomalies}
+          <table>
+            <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Category</th><th>Anomaly Score</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        `;
+      } catch (e) {
+        out.innerHTML = `<span style="color:red">Error: ${e.message}</span>`;
+      }
+    }
+
+    async function loadAnomalyPatterns() {
+      const out = document.getElementById("anomalies-output");
+      out.innerHTML = "<em>Loading anomaly patterns...</em>";
+      try {
+        const res = await fetch(`${getBaseUrl()}/anomalies/patterns`, { headers: authHeaders() });
+        const d = await res.json();
+        let catRows = d.category_distribution.map(c => `
+          <tr><td>${c.category}</td><td>${c.count}</td><td>₹${c.total_amount.toLocaleString()}</td></tr>
+        `).join("");
+
+        out.innerHTML = `
+          <div style="font-size:13px; margin-bottom:8px;">
+            <strong>Total Outlier Outflow:</strong> ₹${d.total_anomalous_spend.toLocaleString()} | 
+            <strong>Critical Spikes:</strong> ${d.high_severity_count}
+          </div>
+          <table>
+            <thead><tr><th>Category with Spikes</th><th>Anomaly Count</th><th>Total Anomaly Amount</th></tr></thead>
+            <tbody>${catRows}</tbody>
+          </table>
+        `;
+      } catch (e) {
+        out.innerHTML = `<span style="color:red">Error: ${e.message}</span>`;
+      }
+    }
+
+    async function loadAlerts() {
+      const out = document.getElementById("anomalies-output");
+      out.innerHTML = "<em>Loading alerts...</em>";
+      try {
+        const res = await fetch(`${getBaseUrl()}/alerts`, { headers: authHeaders() });
+        const list = await res.json();
+        let items = list.map(a => `
+          <div style="padding:8px; border-bottom:1px solid #e2e8f0; font-size:13px;">
+            <span class="badge ${a.severity === 'warning' ? 'badge-warning' : (a.severity === 'critical' ? 'badge-danger' : '')}">${a.alert_type}</span>
+            <strong>${a.title}</strong> - <small>${a.trigger_date || a.created_at}</small>
+            <p style="margin:2px 0 0 0;">${a.description}</p>
+          </div>
+        `).join("");
+        out.innerHTML = items || "<em>No active alerts.</em>";
+      } catch (e) {
+        out.innerHTML = `<span style="color:red">Error: ${e.message}</span>`;
+      }
+    }
+
+    async function loadPredictiveAlerts() {
+      const out = document.getElementById("anomalies-output");
+      out.innerHTML = "<em>Evaluating spending run-rate and upcoming liquidity crunch...</em>";
+      try {
+        const res = await fetch(`${getBaseUrl()}/alerts/predictive`, { headers: authHeaders() });
+        const d = await res.json();
+        let items = d.alerts.map(a => `
+          <div style="padding:8px; border-bottom:1px solid #e2e8f0; font-size:13px;">
+            <span class="badge ${a.severity === 'critical' ? 'badge-danger' : 'badge-warning'}">${a.alert_type}</span>
+            <strong>${a.title}</strong>
+            <p style="margin:2px 0 0 0;">${a.description}</p>
+          </div>
+        `).join("");
+        out.innerHTML = `
+          <strong>Predictive Intelligence Alerts:</strong> ${d.total_predictive_alerts}
+          ${items || "<br><em>All category run rates and 30-day liquidity are safely within bounds.</em>"}
+        `;
+      } catch (e) {
+        out.innerHTML = `<span style="color:red">Error: ${e.message}</span>`;
+      }
+    }
+
+    async function uploadCSV() {
+      const fileInput = document.getElementById("csv-file-input");
+      const statusEl = document.getElementById("upload-status");
+      if (!fileInput.files || fileInput.files.length === 0) {
+        alert("Please select a CSV statement file first.");
+        return;
+      }
+      const formData = new FormData();
+      formData.append("file", fileInput.files[0]);
+
+      statusEl.innerHTML = "<em>Uploading and running 3-tier categorization & anomaly detector...</em>";
+      try {
+        const res = await fetch(`${getBaseUrl()}/transactions/upload`, {
+          method: "POST",
+          headers: { "Authorization": "Bearer " + activeToken },
+          body: formData
+        });
+        const d = await res.json();
+        if (res.ok) {
+          statusEl.innerHTML = `
+            <div class="badge badge-success">Upload Successful</div>
+            Parsed ${d.total_parsed} transactions, saved ${d.total_saved}, 
+            auto-categorized: ${d.auto_categorized_count}, anomalies: ${d.anomalies_detected}, 
+            recurring patterns: ${d.recurring_detected}.
+          `;
+          loadTransactions(1);
+          loadDashboard();
+        } else {
+          statusEl.innerHTML = `<span style="color:red">Upload failed: ${d.detail || "Error"}</span>`;
+        }
+      } catch (err) {
+        statusEl.innerHTML = `<span style="color:red">Upload error: ${err.message}</span>`;
+      }
+    }
+
+    async function loadTransactions(page = 1) {
+      const container = document.getElementById("transactions-table-container");
+      container.innerHTML = "<em>Loading transactions...</em>";
+      try {
+        const res = await fetch(`${getBaseUrl()}/transactions?page=${page}&page_size=15`, { headers: authHeaders() });
+        const d = await res.json();
+        if (!res.ok) {
+          container.innerHTML = `<span style="color:red">Failed: ${d.detail}</span>`;
+          return;
+        }
+
+        let catOptions = activeCategories.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+
+        let rows = d.transactions.map(t => `
+          <tr>
+            <td>${t.date}</td>
+            <td>${t.description}</td>
+            <td style="color:${t.type === 'credit' ? 'green' : 'inherit'}; font-weight:600;">
+              ${t.type === 'credit' ? '+' : '-'}₹${t.amount.toLocaleString()}
+            </td>
+            <td>${t.payment_mode}</td>
+            <td>
+              <select onchange="updateTxnCategory('${t.id}', this.value)" style="font-size:12px;">
+                <option value="${t.category_id || ''}">${t.category_name}</option>
+                ${catOptions}
+              </select>
+            </td>
+            <td>
+              ${t.anomaly_score > 0 ? `<span class="badge badge-warning">${(t.anomaly_score * 100).toFixed(0)}%</span>` : '-'}
+            </td>
+          </tr>
+        `).join("");
+
+        container.innerHTML = `
+          <div style="font-size:12px; margin-bottom:6px;">Showing Page ${d.page} of ${d.total_pages} (Total: ${d.total} txns)</div>
+          <table>
+            <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Mode</th><th>Category (Click to Re-classify)</th><th>Anomaly</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+          <div style="margin-top:8px;">
+            ${d.page > 1 ? `<button onclick="loadTransactions(${d.page - 1})" class="secondary">Previous</button>` : ''}
+            ${d.page < d.total_pages ? `<button onclick="loadTransactions(${d.page + 1})" class="secondary" style="margin-left:6px;">Next</button>` : ''}
+          </div>
+        `;
+      } catch (e) {
+        container.innerHTML = `<span style="color:red">Error: ${e.message}</span>`;
+      }
+    }
+
+    async function updateTxnCategory(txnId, newCatId) {
+      if (!newCatId) return;
+      try {
+        const res = await fetch(`${getBaseUrl()}/transactions/${txnId}`, {
+          method: "PATCH",
+          headers: authHeaders(),
+          body: JSON.stringify({ category_id: newCatId })
+        });
+        const updated = await res.json();
+        if (res.ok) {
+          alert(`Category updated to '${updated.category_name}'. Active learning memory has registered this correction.`);
+          loadDashboard();
+        }
+      } catch (e) {
+        alert("Failed to update: " + e.message);
+      }
+    }
+
+    // Auto-init on page load
+    window.addEventListener("DOMContentLoaded", () => {
+      checkHealth();
+      loadCategories();
+      // Auto-switch to salaried if no active token
+      if (!activeToken) {
+        switchPersona("salaried");
+      } else {
+        loadDashboard();
+      }
+    });
+  </script>
+</body>
+</html>

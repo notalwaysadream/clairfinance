@@ -89,7 +89,29 @@ async def ask_financial_query(
     elif "amit" in current_user.email.lower() or "student" in current_user.email.lower():
         persona_type = "student"
 
-    # 4. Run Evaluation Engine
+    # 4. Fetch recent chat history for Contextual AI Memory (last 5 inquiries)
+    stmt_prev = (
+        select(ChatHistory)
+        .where(ChatHistory.user_id == current_user.id)
+        .order_by(desc(ChatHistory.created_at))
+        .limit(5)
+    )
+    prev_records = (await db.execute(stmt_prev)).scalars().all()
+    past_queries_context = []
+    for pr in prev_records:
+        verdict_val = "evaluated"
+        try:
+            p_data = json.loads(pr.response_json)
+            verdict_val = p_data.get("verdict", "evaluated")
+        except Exception:
+            pass
+        past_queries_context.append({
+            "query_text": pr.query_text,
+            "verdict": verdict_val,
+            "created_at": pr.created_at.strftime("%Y-%m-%d") if pr.created_at else ""
+        })
+
+    # 5. Run Evaluation Engine with contextual memory
     result = await evaluate_affordability(
         req=req,
         avg_monthly_income=avg_monthly_income,
@@ -97,10 +119,11 @@ async def ask_financial_query(
         current_savings=current_savings,
         existing_emis=existing_emis_monthly,
         health_score=health.total_score,
-        persona_type=persona_type
+        persona_type=persona_type,
+        past_queries=past_queries_context
     )
 
-    # 5. Store in Chat History
+    # 6. Store in Chat History
     chat_entry = ChatHistory(
         user_id=current_user.id,
         query_text=f"{req.item_name} (₹{req.estimated_price:,.0f}, {req.payment_method})",

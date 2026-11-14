@@ -49,3 +49,54 @@ class SavingsGoalResponse(BaseModel):
     required_monthly_savings: float
     feasibility: str
     accelerators: List[str]
+
+class WhatIfMonthPoint(BaseModel):
+    month: str
+    baseline_balance: float
+    simulated_balance: float
+    net_difference: float
+
+class WhatIfSimulationRequest(BaseModel):
+    scenario_name: Optional[str] = "What-If Scenario"
+    income_change_percent: Optional[float] = 0.0
+    monthly_expense_change: Optional[float] = 0.0
+    one_time_inflow: Optional[float] = 0.0
+    one_time_outflow: Optional[float] = 0.0
+    projection_months: Optional[int] = 6
+
+class WhatIfSimulationResponse(BaseModel):
+    scenario_name: str
+    baseline_monthly_income: float
+    baseline_monthly_expenses: float
+    baseline_monthly_savings: float
+    simulated_monthly_income: float
+    simulated_monthly_expenses: float
+    simulated_monthly_savings: float
+    net_change_in_annual_savings: float
+    buffer_change_months: float
+    verdict: str
+    monthly_projection: List[WhatIfMonthPoint]
+    insights: List[str]
+
+class EMIOptimizerRequest(BaseModel):
+    proposed_loan_amount: float
+    proposed_interest_rate: float
+    proposed_tenure_months: int
+    lump_sum_prepayment_available: Optional[float] = 0.0
+
+class OptimizationScenario(BaseModel):
+    scenario_id: str
+    title: str
+    description: str
+    combined_monthly_emi: float
+    total_interest_payable: float
+    interest_saved_vs_baseline: float
+    dti_ratio_percent: float
+    recommendation_level: str  # "Highly Recommended", "Viable Alternative", "Baseline"
+
+class EMIOptimizerResponse(BaseModel):
+    current_monthly_debt: float
+    proposed_new_emi: float
+    standard_combined_emi: float
+    scenarios: List[OptimizationScenario]
+    advisor_summary: str

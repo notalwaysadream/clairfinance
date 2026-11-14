@@ -17,6 +17,8 @@ from app.routers import (
     simulator_router,
     alerts_router,
     history_router,
+    anomalies_router,
+    categories_router,
 )
 
 async def seed_initial_data():
@@ -76,7 +78,7 @@ app = FastAPI(
 # CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -102,3 +104,5 @@ app.include_router(query_router, prefix=settings.API_V1_STR)
 app.include_router(simulator_router, prefix=settings.API_V1_STR)
 app.include_router(alerts_router, prefix=settings.API_V1_STR)
 app.include_router(history_router, prefix=settings.API_V1_STR)
+app.include_router(anomalies_router, prefix=settings.API_V1_STR)
+app.include_router(categories_router, prefix=settings.API_V1_STR)

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List
 from datetime import date, datetime
 
@@ -22,6 +22,8 @@ class TransactionUpdate(BaseModel):
     payment_mode: Optional[str] = None
 
 class TransactionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     date: date
     description: str
@@ -36,9 +38,6 @@ class TransactionOut(BaseModel):
     is_recurring: bool = False
     anomaly_score: float = 0.0
     created_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
 
 class TransactionListResponse(BaseModel):
     total: int

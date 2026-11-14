@@ -63,10 +63,12 @@ async def upload_transactions_csv(
     categories = {c.name.lower(): c for c in cat_res.scalars().all()}
     misc_cat = categories.get("miscellaneous")
 
-    # Step 1: Auto-categorize each transaction
+    # Step 1: Auto-categorize each transaction with 3-tier pipeline
+    category_names_list = [c.name for c in cat_res.scalars().all()]
+    categorization_results = await categorizer.categorize_batch_with_llm(raw_txns, category_names_list)
+
     categorized_count = 0
-    for txn in raw_txns:
-        cat_name, conf = categorizer.categorize(txn["description"], txn_type=txn["type"])
+    for txn, (cat_name, conf) in zip(raw_txns, categorization_results):
         matched_cat = categories.get(cat_name.lower(), misc_cat)
         if matched_cat:
             txn["category_id"] = matched_cat.id
@@ -333,6 +335,11 @@ async def update_transaction(
 
     if update_data.category_id is not None:
         txn.category_id = update_data.category_id
+        # Active learning feedback: learn from user correction
+        cat_stmt = select(Category).where(Category.id == update_data.category_id)
+        cat_obj = (await db.execute(cat_stmt)).scalar_one_or_none()
+        if cat_obj:
+            categorizer.record_user_correction(txn.description, cat_obj.name)
     if update_data.description is not None:
         txn.description = update_data.description
     if update_data.amount is not None:
