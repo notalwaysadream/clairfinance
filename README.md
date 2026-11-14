@@ -1,54 +1,54 @@
-# 🏦 FinOps — AI-Powered Personal Financial Operating System
+# ClairFinance - Personal Financial Management Platform
 
-An intelligent web-based financial management platform that auto-categorizes bank transactions, forecasts future cash flow, detects recurring commitments & spending anomalies, and provides conversational "Can I Afford This?" decision intelligence powered by Google Gemini.
-
----
-
-## 🌟 Key Features
-
-- **Automated CSV Ingestion & Parsing**: Flexible parser accommodating Indian bank CSV exports (HDFC, SBI, ICICI, etc.).
-- **3-Tier Categorization Pipeline**: Rule-based regex keyword matching + ML classifier (TF-IDF + LinearSVC) + Gemini LLM fallback.
-- **Time-Series Cash Flow Forecasting**: Probabilistic forecasting with uncertainty confidence intervals using Darts (ExponentialSmoothing / Theta models).
-- **Multi-layered Anomaly Detection**: Statistical Z-Score per category + scikit-learn IsolationForest for multi-dimensional anomaly detection.
-- **Recurring Commitment Identification**: Automatic recognition of subscriptions, EMIs, and recurring bills with frequency clustering.
-- **Financial Health Score**: Comprehensive 0–100 index evaluated across savings rate, expense consistency, debt-to-income, emergency buffer, and spending diversity.
-- **Conversational Decision Simulator ("Can I Afford This?")**: Multi-modal affordability evaluator with cash-flow projection, risk breakdown, and alternative recommendations.
-- **What-If Scenario Simulation**: Dynamic modeling for loans, large purchases, and savings goals.
-- **Backtesting & Accuracy Evaluation**: "Financial Time Machine" to validate prediction accuracy against historical spending.
+A personal financial operating system that parses bank transactions, categorizes expenses, tracks recurring bills, detects anomalies, forecasts cash flow, and answers affordability questions ("Can I afford this?").
 
 ---
 
-## 🏗️ System Architecture
+## Key Features
+
+- CSV Ingestion: Parses bank statements across common Indian bank formats (HDFC, SBI, ICICI, etc.).
+- Multi-Tier Categorization: Rule-based keyword matching with scikit-learn ML fallback and Gemini support.
+- Cash Flow Forecasting: Predicts future cash flow with upper and lower confidence intervals.
+- Anomaly Detection: Flags unusual transactions using category-specific Z-scores.
+- Recurring Detection: Identifies subscriptions, EMIs, and bills using interval clustering.
+- Financial Health Score: 0-100 score based on savings rate, expense consistency, debt-to-income, emergency buffer, and spending diversity.
+- Affordability Query Engine: Answers whether a purchase or loan is affordable based on income, ongoing EMIs, and savings buffer.
+- Financial Simulators: Loan amortization, large purchase buffer impact, and savings goal timelines.
+- Multi-Persona Support: Built-in datasets for salaried, freelancer, and student profiles.
+
+---
+
+## System Architecture
 
 ```mermaid
 flowchart TD
     subgraph Frontend["Frontend (Next.js 14 + Tailwind CSS + shadcn/ui)"]
         Dashboard["Dashboard View"]
         Transactions["Transactions & Upload"]
-        Query["Can I Afford This? (AI Query)"]
+        Query["Can I Afford This?"]
         Simulator["What-If Simulator"]
         Calendar["Spending Calendar"]
-        History["Chat & Decision History"]
+        History["Decision History"]
     end
 
     subgraph Backend["Backend (FastAPI + Python)"]
         Router["API Router Layer"]
-        AuthSvc["Auth Service (Google OAuth / JWT)"]
+        AuthSvc["Auth & Persona Service"]
         TxnSvc["Transaction Service & CSV Parser"]
-        CatEngine["Categorization Engine (Cascading)"]
-        ForecastEngine["Forecasting Engine (Darts)"]
-        AnomalyEngine["Anomaly Detection (Z-Score + IsolationForest)"]
+        CatEngine["Categorization Engine"]
+        ForecastEngine["Forecasting Engine"]
+        AnomalyEngine["Anomaly Detection"]
         HealthEngine["Health Scorer"]
         QueryEngine["Decision Engine"]
         SimEngine["Scenario Simulator"]
     end
 
     subgraph Storage["Database & Models"]
-        DB[(SQLite / aiosqlite)]
+        DB[(SQLite via aiosqlite)]
     end
 
-    subgraph External["AI & Foundation Models"]
-        Gemini["Google Gemini 2.0 Flash"]
+    subgraph External["AI Models"]
+        Gemini["Google Gemini API"]
     end
 
     Frontend -->|REST APIs| Router
@@ -66,186 +66,109 @@ flowchart TD
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```
-bb26_ps22/
-├── frontend/                       # Next.js 14 App Router frontend
+clairfinance/
+├── frontend/                       # Next.js 14 frontend
 │   ├── src/
 │   │   ├── app/                    # Pages, layouts, routing
-│   │   │   ├── api/auth/[...nextauth]/route.ts # NextAuth Google OAuth
-│   │   │   ├── calendar/page.tsx   # Spending calendar view
-│   │   │   ├── dashboard/page.tsx  # Executive overview dashboard
-│   │   │   ├── history/page.tsx    # Decision & query history
-│   │   │   ├── query/page.tsx      # "Can I Afford This?" interface
-│   │   │   ├── simulator/page.tsx  # Scenario & loan simulator
-│   │   │   ├── transactions/page.tsx # Transaction table & CSV upload
-│   │   │   ├── layout.tsx          # Root theme & provider layout
-│   │   │   └── page.tsx            # Landing & authentication entry
-│   │   ├── components/
-│   │   │   ├── common/             # Reusable badges, currency formatters
-│   │   │   ├── dashboard/          # Metric cards, charts, alerts
-│   │   │   ├── layout/             # Sidebar, Header, Dashboard shell
-│   │   │   ├── query/              # Query form, response cards, meter
-│   │   │   ├── simulator/          # Sliders, charts, loan forms
-│   │   │   ├── transactions/       # Table, upload dropzone, badges
-│   │   │   └── ui/                 # shadcn/ui primitives
-│   │   ├── lib/                    # API client, auth, zustand store, utils
-│   │   └── types/                  # Shared TypeScript interfaces
-│   ├── public/                     # Static assets
-│   ├── package.json
-│   ├── tailwind.config.ts          # Dark fintech theme
-│   └── tsconfig.json
+│   │   ├── components/             # UI components
+│   │   ├── lib/                    # API client and utilities
+│   │   └── types/                  # TypeScript interfaces
+│   └── public/                     # Static assets
 │
-├── backend/                        # FastAPI Python backend
+├── backend/                        # FastAPI backend
 │   ├── app/
 │   │   ├── models/                 # SQLAlchemy ORM models
-│   │   ├── routers/                # API endpoint controllers
-│   │   ├── schemas/                # Pydantic validation schemas
-│   │   ├── services/               # Core business & ML engines
-│   │   ├── utils/                  # Utility & formatting helpers
-│   │   ├── config.py               # Environment & app configuration
-│   │   ├── database.py             # Async SQLite session management
-│   │   └── main.py                 # FastAPI application factory
-│   ├── alembic/                    # Database migrations
-│   ├── alembic.ini
+│   │   ├── routers/                # API endpoints
+│   │   ├── schemas/                # Pydantic schemas
+│   │   ├── services/               # Parsing, categorization, health scoring, forecasting
+│   │   ├── utils/                  # Auth and helper utilities
+│   │   ├── config.py               # Settings and configuration
+│   │   ├── database.py             # Database session management
+│   │   └── main.py                 # FastAPI application setup
 │   ├── requirements.txt            # Python dependencies
-│   ├── render.yaml                 # Deployment spec
 │   └── .env.example
 │
-├── scripts/                        # Utility & data generation scripts
-│   ├── generate_test_data.py       # Multi-persona synthetic CSV generator
-│   └── seed_db.py                  # Database populator
+├── scripts/                        # Data scripts
+│   ├── generate_test_data.py       # Generates test persona CSV files
+│   └── seed_db.py                  # Database seeder
 │
-├── data/                           # Synthetic data directory
-├── docker-compose.yml              # Multi-container orchestration
-├── hackathon-plan.md               # Detailed technical specification
+├── data/                           # Generated test CSVs
+├── run_backend.sh                  # One-command backend startup script
+├── backend-progress.md             # Implementation tracking
 └── README.md
 ```
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
-### Prerequisites
-- **Node.js**: v18.x or later (v20+ recommended)
-- **Python**: 3.10+ (3.11/3.12 recommended)
-- **Git**
+### 1. Running the Backend
 
----
-
-### Backend Setup
-
-1. **Navigate to the backend directory**:
-   ```bash
-   cd backend
-   ```
-
-2. **Create and activate a virtual environment**:
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Configure environment variables**:
-   ```bash
-   cp .env.example .env
-   ```
-   Edit `.env` and fill in:
-   - `GEMINI_API_KEY`: Obtain from [Google AI Studio](https://aistudio.google.com/apikey)
-   - `GOOGLE_CLIENT_ID`: Google OAuth 2.0 Client ID
-   - `JWT_SECRET_KEY`: Secure random string for session tokens
-
-5. **Run database migrations (or initial schema create)**:
-   ```bash
-   alembic upgrade head
-   ```
-
-6. **Start the FastAPI development server**:
-   ```bash
-   uvicorn app.main:app --reload --port 8000
-   ```
-   API interactive docs will be available at: [http://localhost:8000/docs](http://localhost:8000/docs)
-
----
-
-### Frontend Setup
-
-1. **Navigate to the frontend directory**:
-   ```bash
-   cd frontend
-   ```
-
-2. **Install dependencies**:
-   ```bash
-   npm install
-   ```
-
-3. **Configure environment variables**:
-   ```bash
-   cp .env.local.example .env.local
-   ```
-   Set up your Google OAuth credentials and backend API URL:
-   - `NEXT_PUBLIC_API_URL=http://localhost:8000`
-   - `NEXTAUTH_URL=http://localhost:3000`
-   - `NEXTAUTH_SECRET=your_secret_here`
-   - `GOOGLE_CLIENT_ID=your_google_client_id`
-   - `GOOGLE_CLIENT_SECRET=your_google_client_secret`
-
-4. **Start the Next.js dev server**:
-   ```bash
-   npm run dev
-   ```
-   The application will be live at [http://localhost:3000](http://localhost:3000).
-
----
-
-### Test Data Generation
-
-Generate synthetic Indian financial transaction profiles (Salaried, Freelancer, Student):
+The fastest way to start the backend is using the startup script:
 
 ```bash
-# Generate all 3 persona datasets
+./run_backend.sh
+```
+
+This script will:
+- Check for Python 3.
+- Set up the virtual environment (`backend/venv`) and install dependencies if needed.
+- Generate the test persona CSV datasets in `data/` if missing.
+- Start the Uvicorn server on port 8000.
+
+Interactive Swagger docs will be available at:
+http://localhost:8000/docs
+
+### 2. Manual Backend Setup
+
+If you prefer running commands manually:
+
+```bash
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+uvicorn app.main:app --reload --port 8000
+```
+
+### 3. Test Data Generation
+
+To generate new datasets for any of the 3 personas:
+
+```bash
 python scripts/generate_test_data.py --persona all --months 12 --output-dir ./data/
-
-# Or generate a single persona
-python scripts/generate_test_data.py --persona salaried --months 12
 ```
 
-To seed the database with generated test data:
+To seed a specific CSV into the database:
+
 ```bash
-python scripts/seed_db.py --file data/salaried_transactions.csv
+python scripts/seed_db.py ./data/salaried_transactions.csv
 ```
 
 ---
 
-## 👥 Collaboration & Module Ownership
+## API Summary
 
-Team members can work independently on their respective domains using the agreed API contracts defined in `hackathon-plan.md` (Section 6):
-
-### 1. Backend Core & APIs
-- **CSV Parsing & Ingestion**: `backend/app/services/csv_parser.py`, `backend/app/routers/transactions.py`
-- **Database Models & Alembic**: `backend/app/models/`, `backend/alembic/`
-- **Authentication**: `backend/app/routers/auth.py`
-
-### 2. AI & Analytics Engines
-- **Cascading Categorization**: `backend/app/services/categorizer.py`
-- **Cash Flow Forecasting**: `backend/app/services/forecaster.py`
-- **Anomaly & Recurring Detection**: `backend/app/services/anomaly_detector.py`, `backend/app/services/recurring_detector.py`
-- **Health Scorer & Decision Engine**: `backend/app/services/health_scorer.py`, `backend/app/services/query_engine.py`, `backend/app/services/gemini_client.py`
-
-### 3. Frontend Views & Visualizations
-- **Dashboard & Cashflow Visualizations**: `frontend/src/app/dashboard/`, `frontend/src/components/dashboard/`
-- **Transactions & Upload Experience**: `frontend/src/app/transactions/`, `frontend/src/components/transactions/`
-- **"Can I Afford This?" & Simulator**: `frontend/src/app/query/`, `frontend/src/app/simulator/`
-- **Calendar & Navigation Shell**: `frontend/src/app/calendar/`, `frontend/src/components/layout/`
-
----
-
-## 📄 License & Blueprint Reference
-For detailed endpoint contracts, database schemas, algorithm formulas, and prompt templates, refer to [hackathon-plan.md](hackathon-plan.md).
+- Personas:
+  - `GET /api/personas`: list personas
+  - `POST /api/personas/switch/{persona_id}`: switch between salaried, freelancer, and student
+- Transactions:
+  - `POST /api/transactions/upload`: upload bank statement CSV
+  - `GET /api/transactions`: list transactions with search and filters
+  - `GET /api/transactions/summary`: total income, expenses, and savings rate
+- Dashboard:
+  - `GET /api/dashboard/overview`: aggregated summary metrics
+  - `GET /api/dashboard/cashflow`: monthly cash flow breakdown
+  - `GET /api/dashboard/spending-breakdown`: category spending breakdown
+  - `GET /api/dashboard/health-score`: 0-100 financial health score
+- Decision Engine:
+  - `POST /api/query/ask`: affordability evaluation
+  - `POST /api/simulator/loan`: loan amortization calculation
+  - `POST /api/simulator/purchase`: purchase impact analysis
+- Forecast & Alerts:
+  - `GET /api/forecast/cashflow`: forward cash flow prediction
+  - `GET /api/alerts`: list user alerts
