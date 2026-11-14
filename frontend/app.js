@@ -5,9 +5,9 @@ const main = $('#main');
 const inr = n => '₹' + Math.abs(Math.round(n || 0)).toLocaleString('en-IN');
 const ARR = '<svg class="ar" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 
-let API_BASE = (window.location.port === '8000') 
-  ? '/api' 
-  : `http://${window.location.hostname || 'localhost'}:8000/api`;
+let API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? (window.location.port === '8000' ? '/api' : `http://${window.location.hostname}:8000/api`)
+  : '/api';
 
 let isBackendConnected = false;
 let activeToken = localStorage.getItem('cf_token') || '';
@@ -1619,6 +1619,17 @@ const PAGES = {
       }
 
       extra.innerHTML = html;
+      const pageEl = main.querySelector('.page');
+      if (pageEl && !pageEl.querySelector('.finance-calendar-link')) {
+        pageEl.insertAdjacentHTML('beforeend', `
+          <div style="display:flex;justify-content:flex-end;margin-top:24px;">
+            <a class="btn finance-calendar-link" href="#/calendar" style="display:inline-flex;align-items:center;gap:8px;">
+              <svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              Finance Calendar
+            </a>
+          </div>
+        `);
+      }
     } catch (e) {
       console.log('Extra forecast loading error:', e);
       const extra = $('#fc-backend-sections');
@@ -1701,6 +1712,12 @@ const PAGES = {
             <p class="cat" style="line-height:1.6;">
               Composite score derived from savings rate, expense consistency, debt-to-income, emergency buffer, and category diversity.
             </p>
+            <div style="margin-top:14px;display:flex;gap:12px;flex-wrap:wrap;">
+              <a class="btn badge-view-btn" href="#/badge" style="display:inline-flex;align-items:center;gap:8px;text-decoration:none;">
+                <svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                View & Share Badge
+              </a>
+            </div>
           </div>
         </section>
 
@@ -1916,6 +1933,565 @@ const PAGES = {
     } catch (err) {
       main.innerHTML = page(`<section class="panel glass"><h3>Error detecting anomalies</h3><p class="cat">${err.message}</p></section>`);
     }
+  },
+
+  // 8. FINANCIAL CALENDAR
+  async calendar() {
+    const now = new Date();
+    let year = now.getFullYear();
+    let month = now.getMonth();
+
+    const moods = [
+      ['😞', 'Difficult', 'Heavy cash outflow or significant EMI deduction.'],
+      ['🙁', 'Tough', 'High discretionary spending or unexpected bill payment.'],
+      ['😐', 'Balanced', 'Income and expenditures remained balanced.'],
+      ['🙂', 'Good', 'Spending stayed low and savings grew steadily.'],
+      ['😄', 'Great', 'Salary arrived or healthy cash surplus achieved.']
+    ];
+
+    const baseEvents = {
+      1: { m: 4, r: 'Monthly salary credited, leaving a healthy liquid surplus.' },
+      2: { m: 4, r: 'Salary arrived, leaving a healthy surplus.' },
+      5: { m: 3, r: 'A small freelance bonus or dividend came in.' },
+      9: { m: 2, r: 'Income and spending were balanced.' },
+      10: { m: 1, r: 'Utility & subscription auto-debits processed.' },
+      12: { m: 1, r: 'A bill payment reduced your available balance.' },
+      15: { m: 0, r: 'Car loan EMI auto-debited — highest outflow day of the month.' },
+      16: { m: 0, r: 'Unexpected expenses made this a difficult day.' },
+      20: { m: 3, r: 'Spending stayed low and savings grew.' },
+      22: { m: 2, r: 'Grocery shopping completed within budget.' },
+      24: { m: 1, r: 'An EMI payment reduced your available balance.' },
+      27: { m: 3, r: 'Discretionary spending stayed zero; emergency fund intact.' }
+    };
+
+    const basePredictions = {
+      25: ['income', 'Predicted salary or bonus payout'],
+      28: ['payment', 'Predicted EMI, loan, or utility bill payment']
+    };
+
+    main.innerHTML = hero('FINANCE CALENDAR', 'finance-calendar.jpg') + page(`
+      <section class="panel glass finance-calendar-panel">
+        <div class="cal-top-bar">
+          <div>
+            <h2 style="font-family:var(--hd);font-size:24px;margin:0 0 4px 0;">Cash Flow & Spending Calendar</h2>
+            <p class="cat" style="margin:0;">Day-by-day financial health ratings, spending intensity, and predicted cash events.</p>
+          </div>
+          <div class="finance-calendar-controls">
+            <div class="cal-nav-buttons">
+              <button type="button" class="cal-nav-btn" id="calPrev" title="Previous Month">◀ Prev</button>
+              <button type="button" class="cal-nav-btn" id="calToday" title="Current Month">Today</button>
+              <button type="button" class="cal-nav-btn" id="calNext" title="Next Month">Next ▶</button>
+            </div>
+            <label>Month
+              <select id="calMonth">
+                ${Array.from({ length: 12 }, (_, i) => `<option value="${i}" ${i === month ? 'selected' : ''}>${new Date(2000, i, 1).toLocaleString('en', { month: 'long' })}</option>`).join('')}
+              </select>
+            </label>
+            <label>Year
+              <select id="calYear">
+                ${Array.from({ length: 9 }, (_, i) => year - 4 + i).map(y => `<option value="${y}" ${y === year ? 'selected' : ''}>${y}</option>`).join('')}
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div class="cal-summary-strip" id="calSummaryStrip"></div>
+
+        <div class="finance-calendar-legend">
+          <span>😄 Great</span>
+          <span>🙂 Good</span>
+          <span>😐 Balanced</span>
+          <span>🙁 Tough</span>
+          <span>😞 Difficult</span>
+          <span style="display:inline-flex;align-items:center;gap:6px;"><i class="calendar-dot income" style="position:static;display:inline-block;"></i> Predicted income</span>
+          <span style="display:inline-flex;align-items:center;gap:6px;"><i class="calendar-dot payment" style="position:static;display:inline-block;"></i> Predicted payment</span>
+        </div>
+
+        <div class="finance-calendar-grid" id="calendarGrid"></div>
+
+        <div class="finance-day-detail" id="calendarDetail" aria-live="polite">
+          <b>Select a past day to see why it received its rating.</b>
+          <p>Click any date above to inspect cash inflows, expenses, and AI financial notes.</p>
+        </div>
+      </section>
+    `);
+
+    let recurringByDay = {};
+    try {
+      const rec = await apiFetch('/forecast/recurring', { headers: authHeaders() }).catch(() => null);
+      if (rec && rec.patterns) {
+        rec.patterns.forEach(p => {
+          if (p.typical_day) {
+            recurringByDay[p.typical_day] = p;
+          }
+        });
+      }
+    } catch (_) {}
+
+    const render = () => {
+      month = +$('#calMonth').value;
+      year = +$('#calYear').value;
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const offset = new Date(year, month, 1).getDay();
+      const total = new Date(year, month + 1, 0).getDate();
+
+      let countGreat = 0, countGood = 0, countTough = 0;
+      let estInflow = 0, estOutflow = 0;
+
+      const cells = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => `<div class="calendar-weekday">${d}</div>`);
+      for (let i = 0; i < offset; i++) {
+        cells.push('<div class="calendar-day empty"></div>');
+      }
+
+      for (let d = 1; d <= total; d++) {
+        const thisDate = new Date(year, month, d);
+        const isToday = thisDate.getTime() === today.getTime();
+        const passed = thisDate <= today;
+
+        let e = baseEvents[d];
+        let p = !passed && basePredictions[d];
+
+        if (recurringByDay[d]) {
+          const recItem = recurringByDay[d];
+          if (!passed) {
+            p = ['payment', `Predicted ${recItem.merchant_clean || 'recurring bill'}: ${inr(recItem.typical_amount)}`];
+          } else if (!e) {
+            e = { m: 1, r: `Recurring ${recItem.merchant_clean || 'bill'} of ${inr(recItem.typical_amount)} processed.` };
+          }
+        }
+
+        if (e) {
+          if (e.m >= 3) { countGreat++; estInflow += (e.m === 4 ? 65000 : 8000); }
+          else if (e.m <= 1) { countTough++; estOutflow += (e.m === 0 ? 9800 : 2500); }
+          else { countGood++; estOutflow += 800; }
+        }
+
+        const m = e ? moods[e.m] : (passed ? moods[2] : null);
+        const dateStr = thisDate.toLocaleDateString('en', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+        cells.push(`
+          <button type="button" class="calendar-day ${passed ? 'past' : 'upcoming'} ${isToday ? 'today' : ''} ${e ? `mood-${e.m}` : ''}" data-day="${d}" data-passed="${passed}" title="${dateStr}${m ? ' · ' + m[1] : (p ? ' · ' + p[1] : '')}">
+            <span class="calendar-date">${d}</span>
+            ${passed ? `<span class="calendar-mood">${m ? m[0] : '😐'}</span>` : ''}
+            ${p ? `<i class="calendar-dot ${p[0]}" title="${p[1]}"></i>` : ''}
+          </button>
+        `);
+      }
+
+      $('#calendarGrid').innerHTML = cells.join('');
+
+      const monthName = new Date(year, month, 1).toLocaleString('en', { month: 'long' });
+      $('#calSummaryStrip').innerHTML = `
+        <div class="cal-summary-card">
+          <small>Month Window</small>
+          <b>${monthName} ${year}</b>
+        </div>
+        <div class="cal-summary-card">
+          <small>Estimated Inflow</small>
+          <b class="ok">+${inr(estInflow || 65000)}</b>
+        </div>
+        <div class="cal-summary-card">
+          <small>Estimated Outflow</small>
+          <b class="warn">-${inr(estOutflow || 31450)}</b>
+        </div>
+        <div class="cal-summary-card">
+          <small>Healthy Days</small>
+          <b class="ok">${countGreat + countGood || 22} Days</b>
+        </div>
+      `;
+
+      $('#calendarDetail').innerHTML = `
+        <b>Select a day to see why it received its rating.</b>
+        <p>Click any date above to inspect cash inflows, expenses, and AI financial notes.</p>
+      `;
+    };
+
+    $('#calMonth').onchange = render;
+    $('#calYear').onchange = render;
+
+    $('#calPrev').onclick = () => {
+      let m = +$('#calMonth').value - 1;
+      let y = +$('#calYear').value;
+      if (m < 0) { m = 11; y--; }
+      $('#calMonth').value = m;
+      $('#calYear').value = y;
+      render();
+    };
+
+    $('#calNext').onclick = () => {
+      let m = +$('#calMonth').value + 1;
+      let y = +$('#calYear').value;
+      if (m > 11) { m = 0; y++; }
+      $('#calMonth').value = m;
+      $('#calYear').value = y;
+      render();
+    };
+
+    $('#calToday').onclick = () => {
+      const t = new Date();
+      $('#calMonth').value = t.getMonth();
+      $('#calYear').value = t.getFullYear();
+      render();
+    };
+
+    $('#calendarGrid').onclick = e => {
+      const b = e.target.closest('.calendar-day[data-day]');
+      if (!b) return;
+
+      $$('.calendar-day').forEach(el => el.classList.remove('selected'));
+      b.classList.add('selected');
+
+      const d = +b.dataset.day;
+      const passed = b.dataset.passed === 'true';
+      const item = baseEvents[d];
+      const pred = basePredictions[d];
+      const m = item ? moods[item.m] : moods[2];
+      const label = new Date(year, month, d).toLocaleDateString('en', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+      if (passed) {
+        $('#calendarDetail').innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
+            <div>
+              <b style="font-size:16px;">${label} · ${m[0]} ${m[1]}</b>
+              <p style="margin-top:6px;">${item ? item.r : 'Income and spending were balanced. No abnormal outflows detected.'}</p>
+            </div>
+            <span class="chip ${item && item.m >= 3 ? 'ok' : (item && item.m <= 1 ? 'bad' : 'warn')}">
+              ${m[1]} Rating
+            </span>
+          </div>
+          <div class="detail-tx-list">
+            <div class="detail-tx-item">
+              <span>Financial Health Status</span>
+              <b>${item ? (item.m >= 3 ? 'Positive Surplus Day' : (item.m === 0 ? 'Major EMI / Outflow Spike' : 'Controlled Spending')) : 'Balanced Routine Day'}</b>
+            </div>
+            <div class="detail-tx-item">
+              <span>Advisor Note</span>
+              <span class="cat">${item ? (item.m >= 3 ? 'Surplus routed towards emergency buffer.' : 'Budget remaining intact for current cycle.') : 'Good daily discipline.'}</span>
+            </div>
+          </div>
+        `;
+      } else {
+        $('#calendarDetail').innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
+            <div>
+              <b style="font-size:16px;">${label} · Upcoming Day</b>
+              <p style="margin-top:6px;">${pred ? pred[1] : 'No scheduled bills or planned payouts. Regular estimated baseline spending.'}</p>
+            </div>
+            <span class="chip ${pred && pred[0] === 'income' ? 'ok' : 'warn'}">
+              ${pred ? (pred[0] === 'income' ? 'Predicted Inflow' : 'Predicted Payment') : 'Estimated Baseline'}
+            </span>
+          </div>
+        `;
+      }
+    };
+
+    render();
+  },
+
+  // 9. FINANCE SCORE BADGE
+  async badge() {
+    main.innerHTML = hero('FINANCE SCORE BADGE', 'badge-banner.jpg', 'badge-banner') +
+      page(`<div style="display:flex;justify-content:center;padding:40px;"><div class="spin"></div> Loading your financial health score and badge certificate...</div>`);
+
+    let score = 72;
+    let scoreStatus = 'Good, with room to improve';
+    let personalityTitle = 'Financial Health';
+    let personalityTip = 'A little progress. A stronger future.';
+    let memberName = 'Rahul Sharma';
+
+    try {
+      const scoreData = await apiFetch('/dashboard/health-score', { headers: authHeaders() }).catch(() => null);
+      if (scoreData && scoreData.total_score != null) {
+        score = Math.round(scoreData.total_score);
+        if (scoreData.status) scoreStatus = scoreData.status;
+      }
+      const personality = await apiFetch('/dashboard/personality', { headers: authHeaders() }).catch(() => null);
+      if (personality) {
+        if (personality.title) personalityTitle = personality.title;
+        if (personality.actionable_tip) personalityTip = personality.actionable_tip;
+      }
+      if (currentUser && currentUser.name) {
+        memberName = currentUser.name;
+      } else if (activePersona && activePersona.name) {
+        memberName = activePersona.name;
+      }
+    } catch (e) {
+      console.log('Error fetching badge data:', e);
+    }
+
+    const T = [
+      ['spider', 'Spider-Man', 'badge-spider.jpg', '#e52335', '#174079', '#090c19', 'Space Grotesk', 'Vigilant Guardian'],
+      ['cyberpunk', 'Cyberpunk 2077', 'badge-cyberpunk.jpg', '#fcee0a', '#00f0ff', '#0a0a14', 'Space Grotesk', 'Netrunner Elite'],
+      ['neural', 'AI Neural Net', 'badge-neural.jpg', '#10b981', '#047857', '#02120b', 'Space Grotesk', 'Neural Strategist'],
+      ['batman', 'Dark Knight', 'badge-batman.jpg', '#f59e0b', '#374151', '#030712', 'Inter', 'Shadow Capitalist'],
+      ['synthwave', 'Synthwave 80s', 'badge-synthwave.jpg', '#ff2a85', '#05d9e8', '#120428', 'Space Grotesk', 'High-Score Chaser'],
+      ['bloodborne', 'Bloodborne', 'badge-bloodborne.jpg', '#9d283d', '#281319', '#0b090b', 'Georgia', 'Yharnam Scholar'],
+      ['royal', 'Royal Obsidian', 'badge-royal.jpg', '#facc15', '#6b21a8', '#0a0515', 'Georgia', 'Imperial Treasury'],
+      ['money', 'Money & Wealth', 'badge-money.jpg', '#c4a660', '#566046', '#11150f', 'Inter', 'Wealth Architect'],
+      ['zen', 'Zen Botanical', 'badge-zen.jpg', '#34d399', '#0f766e', '#06211a', 'Inter', 'Mindful Minimalist'],
+      ['cute', 'Cutie Dolls', 'badge-cute.jpg', '#e988a6', '#f5c8d2', '#fff5f7', 'Trebuchet MS', 'Sweet Saver']
+    ];
+
+    let selected = localStorage.getItem('cf-badge-theme') || 'spider';
+
+    main.innerHTML = hero('FINANCE SCORE BADGE', 'badge-banner.jpg', 'badge-banner') + page(`
+      <section class="badge-page panel glass">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h2 style="margin:0 0 4px 0;">Your Finance Score</h2>
+            <p class="cat" style="margin:0;">Certified financial wellness badge with collectible themes. Shareable directly on LinkedIn and Instagram.</p>
+          </div>
+          <span class="chip ok" style="font-size:13px;padding:6px 14px;">✓ AI Verified Certificate</span>
+        </div>
+
+        <div class="badge-wrapper">
+          <div class="finance-badge" id="financeBadge">
+            <div class="badge-art"></div>
+            <div class="badge-overlay"></div>
+            <div class="badge-copy">
+              <div class="badge-brand">
+                <svg viewBox="0 0 96 80" style="width:22px;height:18px;display:inline-block;"><use href="#logo"/></svg>
+                CLAIR FINANCE
+              </div>
+              <div class="badge-kicker" id="badgeKickerDisplay">FINANCE SCORE · FINANCIAL HEALTH</div>
+              <strong id="badgeScoreDisplay">${score}<small>/100</small></strong>
+              <h3 id="badgeStatusDisplay">${scoreStatus}</h3>
+              <hr>
+              <div class="badge-meta-row">
+                <b id="badgeArchDisplay">${personalityTitle}</b>
+                <span id="badgeMemberDisplay">Verified: ${memberName}</span>
+              </div>
+              <p id="badgeTipDisplay">${personalityTip}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="badge-actions">
+          <button class="btn linkedin-action" id="badgeLinkedIn" title="Upload and share directly to LinkedIn">
+            <svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:currentColor;"><path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 8.76a1.53 1.53 0 0 0 0-3.06 1.53 1.53 0 0 0 0 3.06m1.4 9.74v-8.37H5.06v8.37h2.8z"/></svg>
+            Upload to LinkedIn
+          </button>
+          <button class="btn instagram-action" id="badgeInstagram" title="Download and share to Instagram Story or Feed">
+            <svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:currentColor;"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+            Upload to Instagram
+          </button>
+          <button class="btn ghost" id="badgeDownload" title="Download badge PNG directly">
+            <svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Download badge
+          </button>
+          <button class="btn ghost" id="badgeCustomize" aria-expanded="false" title="Switch between themes">
+            <svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 10 10 0 0 0 0-20"/></svg>
+            Customize badge
+          </button>
+        </div>
+
+        <div id="badgeThemes" class="badge-themes" hidden>
+          ${T.map(t => `
+            <button type="button" data-id="${t[0]}" aria-pressed="false" class="${t[0] === selected ? 'selected' : ''}">
+              <img src="assets/${t[2]}" alt="${t[1]} Theme" loading="lazy">
+              <div class="theme-label">
+                <span>${t[1]}</span>
+                <i class="theme-dot" style="background:${t[3]};"></i>
+              </div>
+            </button>
+          `).join('')}
+        </div>
+
+        <p id="badgeMessage" class="cat" aria-live="polite">Your score is yours to share.</p>
+      </section>
+    `);
+
+    const showMsg = (txt, isSuccess = true) => {
+      const el = $('#badgeMessage');
+      if (!el) return;
+      el.innerHTML = txt;
+      el.style.color = isSuccess ? 'var(--ok)' : 'var(--warn)';
+      el.style.fontWeight = '500';
+    };
+
+    const apply = () => {
+      const t = T.find(x => x[0] === selected) || T[0];
+      const b = $('#financeBadge');
+      if (!b) return;
+      b.dataset.theme = t[0];
+      b.style.setProperty('--accent', t[3]);
+      b.style.setProperty('--mid', t[4]);
+      b.style.setProperty('--dark', t[5]);
+      b.style.setProperty('--badge-image', `url("assets/${t[2]}")`);
+      b.style.setProperty('--badge-font', `'${t[6]}', sans-serif`);
+      const kicker = $('#badgeKickerDisplay');
+      if (kicker) {
+        kicker.textContent = (t[7] ? `${t[7].toUpperCase()} · ` : '') + 'FINANCE SCORE · FINANCIAL HEALTH';
+      }
+      document.querySelectorAll('.badge-themes button').forEach(x => {
+        const isMatch = x.dataset.id === selected;
+        x.classList.toggle('selected', isMatch);
+        x.setAttribute('aria-pressed', String(isMatch));
+      });
+    };
+    apply();
+
+    document.querySelectorAll('.badge-themes button').forEach(x => {
+      x.onclick = () => {
+        selected = x.dataset.id;
+        localStorage.setItem('cf-badge-theme', selected);
+        apply();
+        showMsg(`Badge theme switched to <b>${x.querySelector('span')?.textContent}</b>.`);
+      };
+    });
+
+    $('#badgeCustomize').onclick = () => {
+      const e = $('#badgeThemes');
+      e.hidden = !e.hidden;
+      $('#badgeCustomize').setAttribute('aria-expanded', String(!e.hidden));
+    };
+
+    const png = async () => {
+      const t = T.find(x => x[0] === selected) || T[0];
+      const c = document.createElement('canvas');
+      c.width = 1200;
+      c.height = 750;
+      const x = c.getContext('2d');
+
+      // Base fill
+      x.fillStyle = t[5];
+      x.fillRect(0, 0, 1200, 750);
+
+      try {
+        const im = new Image();
+        im.src = `assets/${t[2]}`;
+        await new Promise((resolve) => {
+          im.onload = resolve;
+          im.onerror = resolve;
+        });
+        if (im.complete && im.naturalWidth > 0) {
+          const k = Math.max(1200 / im.naturalWidth, 750 / im.naturalHeight);
+          x.globalAlpha = 0.42;
+          x.drawImage(im, (1200 - im.naturalWidth * k) / 2, (750 - im.naturalHeight * k) / 2, im.naturalWidth * k, im.naturalHeight * k);
+          x.globalAlpha = 1.0;
+        }
+      } catch (_) {}
+
+      // Gradient overlay
+      const g = x.createLinearGradient(0, 0, 1200, 0);
+      g.addColorStop(0, t[5] + 'f5');
+      g.addColorStop(0.55, t[4] + '99');
+      g.addColorStop(1, t[4] + '66');
+      x.fillStyle = g;
+      x.fillRect(0, 0, 1200, 750);
+
+      // Outer accent border
+      x.lineWidth = 10;
+      x.strokeStyle = t[3];
+      x.strokeRect(5, 5, 1190, 740);
+
+      // Typography
+      const isCute = t[0] === 'cute';
+      const textColor = isCute ? '#63384a' : 'white';
+      const subColor = isCute ? '#81576a' : '#cbd5e1';
+      const font = t[6] || 'sans-serif';
+
+      x.fillStyle = textColor;
+      x.font = `600 30px '${font}', sans-serif`;
+      x.fillText('CLAIR FINANCE · FINANCE SCORE', 60, 80);
+
+      x.fillStyle = t[3];
+      x.font = `600 14px sans-serif`;
+      x.fillText((t[7] ? `${t[7].toUpperCase()} · ` : '') + 'FINANCIAL HEALTH CERTIFICATION', 60, 115);
+
+      x.fillStyle = textColor;
+      x.font = `700 185px '${font}', sans-serif`;
+      x.fillText(String(score), 60, 360);
+
+      const scoreW = x.measureText(String(score)).width;
+      x.fillStyle = subColor;
+      x.font = `500 36px sans-serif`;
+      x.fillText('/100', 60 + scoreW + 10, 270);
+
+      x.fillStyle = textColor;
+      x.font = `600 48px '${font}', sans-serif`;
+      x.fillText(scoreStatus, 60, 475);
+
+      x.strokeStyle = t[3];
+      x.lineWidth = 2;
+      x.beginPath();
+      x.moveTo(60, 505);
+      x.lineTo(750, 505);
+      x.stroke();
+
+      x.fillStyle = textColor;
+      x.font = `700 28px '${font}', sans-serif`;
+      x.fillText(personalityTitle, 60, 555);
+
+      x.fillStyle = subColor;
+      x.font = `500 20px sans-serif`;
+      x.fillText(`Verified Member: ${memberName}`, 60, 595);
+
+      x.fillStyle = subColor;
+      x.font = `400 16px sans-serif`;
+      x.fillText(`Advisor Tip: ${personalityTip}`, 60, 635);
+
+      const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+      x.font = `500 14px sans-serif`;
+      x.fillText(`Issued: ${dateStr} · ClairFinance FinOps Certification`, 60, 700);
+
+      return new Promise(r => c.toBlob(b => {
+        if (!b) return r(null);
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(b);
+        a.download = `clairfinance-score-badge-${t[0]}.png`;
+        a.click();
+        r(b);
+      }, 'image/png'));
+    };
+
+    $('#badgeDownload').onclick = async () => {
+      showMsg('Downloading high-resolution badge...');
+      await png();
+      showMsg('Badge downloaded successfully (PNG format).');
+    };
+
+    $('#badgeLinkedIn').onclick = async () => {
+      const shareUrl = window.location.origin + window.location.pathname;
+      const linkedInCaption = `I am proud to share my verified Financial Health Score of ${score}/100 on ClairFinance! 🚀 Managing cash flows, tracking subscriptions, and optimizing financial health. Certified by ClairFinance AI. #PersonalFinance #FinOps #ClairFinance #FinancialHealth`;
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(linkedInCaption).catch(() => {});
+      }
+
+      window.open('https://www.linkedin.com/sharing/share-offsite/?url=' + encodeURIComponent(shareUrl), '_blank', 'noopener');
+      await png();
+      showMsg('Attach the downloaded badge to your LinkedIn post. Caption was copied to your clipboard!');
+    };
+
+    $('#badgeInstagram').onclick = async () => {
+      const instaCaption = `Financial health milestone unlocked! 📊 Hit a score of ${score}/100 on @ClairFinance. 💳✨ Managing cash flows, saving consistently, and tracking every milestone. #ClairFinance #FinOps #MoneyMindset #SavingsGoals #FinancialFreedom #FinancialHealth`;
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(instaCaption).catch(() => {});
+      }
+
+      const blob = await png();
+
+      if (blob && navigator.canShare && navigator.canShare({ files: [new File([blob], 'badge.png', { type: 'image/png' })] })) {
+        try {
+          const file = new File([blob], 'clairfinance-score-badge.png', { type: 'image/png' });
+          await navigator.share({
+            files: [file],
+            title: 'My ClairFinance Score Badge',
+            text: instaCaption
+          });
+          showMsg('Share sheet opened! Select Instagram Story or Post.');
+          return;
+        } catch (_) {}
+      }
+
+      window.open('https://www.instagram.com/', '_blank', 'noopener');
+      showMsg('Badge downloaded. Add it to your Instagram post or story. Caption was copied to your clipboard!');
+    };
   }
 };
 
@@ -2148,3 +2724,163 @@ const gisTimer = setInterval(() => {
     clearInterval(gisTimer);
   }
 }, 300);
+
+/* -------------------------------------------------------------
+   HIGH-PERFORMANCE BUTTER-SMOOTH LIGHTWEIGHT SCROLL ENGINE
+------------------------------------------------------------- */
+(function initSmoothScroll() {
+  if (typeof window === 'undefined') return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  let currentY = window.scrollY;
+  let targetY = window.scrollY;
+  let isAnimating = false;
+  let rafId = null;
+  let lastWheelTime = 0;
+  let touchpadCooldownUntil = 0;
+
+  function getMaxScroll() {
+    return Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+  }
+
+  function isInnerScrollable(target, deltaX, deltaY) {
+    let el = target;
+    while (el && el !== document.body && el !== document.documentElement) {
+      const style = window.getComputedStyle(el);
+      const isScrollableX = (style.overflowX === 'auto' || style.overflowX === 'scroll') && el.scrollWidth > el.clientWidth;
+      const isScrollableY = (style.overflowY === 'auto' || style.overflowY === 'scroll') && el.scrollHeight > el.clientHeight;
+
+      if (Math.abs(deltaX) > Math.abs(deltaY) && isScrollableX) {
+        return true;
+      }
+      if (Math.abs(deltaY) > 0 && isScrollableY) {
+        const canScrollDown = deltaY > 0 && el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+        const canScrollUp = deltaY < 0 && el.scrollTop > 1;
+        if (canScrollDown || canScrollUp) return true;
+      }
+      el = el.parentElement;
+    }
+    return false;
+  }
+
+  function update() {
+    if (!isAnimating) return;
+    const diff = targetY - currentY;
+    if (Math.abs(diff) < 0.35) {
+      currentY = targetY;
+      window.scrollTo(0, currentY);
+      isAnimating = false;
+      rafId = null;
+      return;
+    }
+
+    // Snappy, agile 0.22 easing curve - eliminates heavy dragging/viscosity
+    currentY += diff * 0.22;
+    window.scrollTo(0, currentY);
+    rafId = requestAnimationFrame(update);
+  }
+
+  window.addEventListener('wheel', (e) => {
+    // Pass through browser zoom gestures or modifier scroll combinations
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+    // If inside a scrollable child element, do not interfere
+    if (isInnerScrollable(e.target, e.deltaX, e.deltaY)) {
+      targetY = window.scrollY;
+      currentY = window.scrollY;
+      return;
+    }
+
+    const now = performance.now();
+    const dt = now - lastWheelTime;
+    lastWheelTime = now;
+
+    // Detect precision trackpads (MacBook trackpads, precision touchpads):
+    // Trackpads emit micro-deltas, non-integers, or horizontal components with deltaMode === 0.
+    const isFractional = Math.abs(e.deltaY % 1) > 0.01;
+    const isSmallDelta = Math.abs(e.deltaY) < 18;
+    const hasHorizontalMovement = Math.abs(e.deltaX) > 0.5;
+
+    if (e.deltaMode === 0 && (isFractional || isSmallDelta || hasHorizontalMovement)) {
+      touchpadCooldownUntil = now + 250;
+    }
+
+    const isTouchpad = now < touchpadCooldownUntil;
+
+    // If using a touchpad, let native OS momentum handle it with 100% natural lightness
+    if (isTouchpad) {
+      if (isAnimating) {
+        cancelAnimationFrame(rafId);
+        isAnimating = false;
+      }
+      targetY = window.scrollY;
+      currentY = window.scrollY;
+      return;
+    }
+
+    // Mouse wheel (discrete notches) - apply breezy, lightweight smooth momentum
+    const isMouseWheel = e.deltaMode !== 0 || (Math.abs(e.deltaY) >= 20 && Math.abs(e.deltaY % 1) === 0);
+
+    if (isMouseWheel) {
+      e.preventDefault();
+      const maxScroll = getMaxScroll();
+
+      // Slightly amplify distance on consecutive rapid wheel flicks for effortless glide
+      const velocityBonus = dt < 90 ? Math.min(1.65, 1 + (90 - dt) / 80) : 1;
+      const baseMultiplier = e.deltaMode === 1 ? 50 : (e.deltaMode === 2 ? window.innerHeight : 1.42);
+      const delta = e.deltaY * baseMultiplier * velocityBonus;
+
+      if (!isAnimating) {
+        currentY = window.scrollY;
+        targetY = window.scrollY;
+      }
+
+      targetY = Math.min(Math.max(0, targetY + delta), maxScroll);
+
+      if (!isAnimating) {
+        isAnimating = true;
+        rafId = requestAnimationFrame(update);
+      }
+    }
+  }, { passive: false });
+
+  // Instant sync on native scrollbar drags, anchor jumps, or route changes
+  window.addEventListener('scroll', () => {
+    if (!isAnimating) {
+      targetY = window.scrollY;
+      currentY = window.scrollY;
+    }
+  }, { passive: true });
+
+  // Cancel any in-flight interpolation on direct touch interaction
+  window.addEventListener('touchstart', () => {
+    if (isAnimating) {
+      cancelAnimationFrame(rafId);
+      isAnimating = false;
+    }
+    targetY = window.scrollY;
+    currentY = window.scrollY;
+  }, { passive: true });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) return;
+    const keys = { 'PageDown': 0.85, 'PageUp': -0.85, 'Space': 0.8, 'ArrowDown': 120, 'ArrowUp': -120 };
+    if (keys[e.code] !== undefined) {
+      const maxScroll = getMaxScroll();
+      const step = typeof keys[e.code] === 'number' && Math.abs(keys[e.code]) <= 1
+        ? keys[e.code] * window.innerHeight
+        : keys[e.code];
+      
+      e.preventDefault();
+      if (!isAnimating) {
+        currentY = window.scrollY;
+        targetY = window.scrollY;
+      }
+      targetY = Math.min(Math.max(0, targetY + step), maxScroll);
+      if (!isAnimating) {
+        isAnimating = true;
+        rafId = requestAnimationFrame(update);
+      }
+    }
+  });
+})();

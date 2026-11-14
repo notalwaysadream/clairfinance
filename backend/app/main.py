@@ -59,6 +59,10 @@ async def seed_initial_data():
             session.add(dev_user)
 
         await session.commit()
+        
+        # Ensure all demo personas are seeded on startup
+        from app.routers.personas import seed_all_personas
+        await seed_all_personas(session)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
