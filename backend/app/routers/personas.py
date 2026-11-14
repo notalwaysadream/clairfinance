@@ -17,6 +17,7 @@ from app.utils.helpers import (
     set_active_persona_id,
     get_or_create_persona_user,
     create_access_token,
+    get_data_dir,
 )
 from app.services.csv_parser import parse_csv_content
 from app.services.categorizer import categorizer
@@ -26,7 +27,7 @@ from app.services.health_scorer import calculate_health_score
 
 router = APIRouter(prefix="/personas", tags=["Personas"])
 
-DATA_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data"
+DATA_DIR = get_data_dir()
 
 async def ensure_persona_data_loaded(db: AsyncSession, persona_id: str, user: User):
     """

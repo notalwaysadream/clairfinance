@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Optional, Dict, Any
 from jose import jwt, JWTError
 from fastapi import Depends, HTTPException, status
@@ -57,6 +58,26 @@ PERSONA_REGISTRY: Dict[str, Dict[str, Any]] = {
         "key_characteristics": "Custom dataset parsed from uploaded bank statement or Kaggle dataset",
     },
 }
+
+def get_data_dir() -> Path:
+    """
+    Resolves the directory containing dataset CSV files across various deployment
+    environments (Render root deployment, Render subdirectory deployment, local dev, Docker).
+    """
+    candidates = [
+        Path(__file__).resolve().parent.parent.parent.parent / "data",  # repo_root/data
+        Path(__file__).resolve().parent.parent.parent / "data",         # backend/data
+        Path.cwd() / "data",                                            # cwd/data
+        Path.cwd() / "backend" / "data",                               # cwd/backend/data
+        Path.cwd().parent / "data",                                     # cwd/../data
+    ]
+    for candidate in candidates:
+        if candidate.exists() and (candidate / "salaried_transactions.csv").exists():
+            return candidate
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
 
 _active_persona_id = "salaried"
 

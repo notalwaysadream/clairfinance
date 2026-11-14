@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ClairFinance Database Initializer
+Clairfinance Database Initializer
 Creates all database tables, seeds default categories, dev user, and all demo personas.
 """
 import sys
@@ -22,7 +22,7 @@ async def main():
     async with AsyncSessionLocal() as session:
         res = await seed_all_personas(session)
         print(f"✅ Seeding finished: {res.get('message', 'Done')}")
-    print("🎉 ClairFinance Database ready.")
+    print("🎉 Clairfinance Database ready.")
 
 if __name__ == "__main__":
     asyncio.run(main())

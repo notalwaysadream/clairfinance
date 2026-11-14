@@ -56,8 +56,15 @@ next-env.d.ts
 finops.db
 
 # Generated Data files
-data/*.csv
+data/temp*.csv
+backend/data/temp*.csv
+!data/*.csv
 !data/.gitkeep
+!backend/data/*.csv
+!backend/data/.gitkeep
+
+# Reference uploads
+dummy/
 
 # IDEs
 .idea/

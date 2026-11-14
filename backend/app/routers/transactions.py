@@ -24,6 +24,7 @@ from app.utils.helpers import (
     get_or_create_persona_user,
     set_active_persona_id,
     create_access_token,
+    get_data_dir,
 )
 from app.services.csv_parser import parse_csv_content
 from app.services.categorizer import categorizer
@@ -32,7 +33,7 @@ from app.services.recurring_detector import detect_recurring_patterns
 
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
 
-DATA_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data"
+DATA_DIR = get_data_dir()
 
 @router.post("/seed-sample")
 async def seed_sample_transactions(

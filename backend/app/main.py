@@ -19,6 +19,7 @@ from app.routers import (
     history_router,
     anomalies_router,
     categories_router,
+    promises_router,
 )
 
 async def seed_initial_data():
@@ -117,6 +118,7 @@ app.include_router(alerts_router, prefix=settings.API_V1_STR)
 app.include_router(history_router, prefix=settings.API_V1_STR)
 app.include_router(anomalies_router, prefix=settings.API_V1_STR)
 app.include_router(categories_router, prefix=settings.API_V1_STR)
+app.include_router(promises_router, prefix=settings.API_V1_STR)
 
 # Serve Frontend static files if present
 from pathlib import Path

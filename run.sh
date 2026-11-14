@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ClaireFinance Startup Script
+# Clairfinance Startup Script
 # Boots both FastAPI backend (port 8000) and Frontend (port 3000), seeds datasets, and opens the browser.
 
 set -e
@@ -11,7 +11,7 @@ VENV_DIR="$BACKEND_DIR/venv"
 DATA_DIR="$ROOT_DIR/data"
 
 echo "=================================================="
-echo "🏦 Launching ClaireFinance Operating System"
+echo "🏦 Launching Clairfinance Operating System"
 echo "Root directory: $ROOT_DIR"
 echo "=================================================="
 
@@ -56,7 +56,7 @@ echo "🌱 Ensuring database and test personas (Salaried, Freelancer, Student) a
 # 6. Process Cleanup Handler for Ctrl+C
 cleanup() {
     echo ""
-    echo "🛑 Shutting down ClaireFinance (backend & frontend)..."
+    echo "🛑 Shutting down Clairfinance (backend & frontend)..."
     if [ -n "$BACKEND_PID" ]; then
         kill "$BACKEND_PID" 2>/dev/null || true
     fi
@@ -65,7 +65,7 @@ cleanup() {
     fi
     wait "$BACKEND_PID" 2>/dev/null || true
     wait "$FRONTEND_PID" 2>/dev/null || true
-    echo "✅ ClaireFinance processes stopped cleanly. Goodbye!"
+    echo "✅ Clairfinance processes stopped cleanly. Goodbye!"
     exit 0
 }
 trap cleanup SIGINT SIGTERM EXIT
@@ -107,7 +107,7 @@ else
 fi
 
 echo "=================================================="
-echo "✨ ClaireFinance is LIVE!"
+echo "✨ Clairfinance is LIVE!"
 echo "=================================================="
 echo "💻 Frontend App:     http://localhost:3000"
 echo "⚙️ Backend API:      http://localhost:8000"

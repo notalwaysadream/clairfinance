@@ -9,6 +9,7 @@ from app.routers.alerts import router as alerts_router
 from app.routers.history import router as history_router
 from app.routers.anomalies import router as anomalies_router
 from app.routers.categories import router as categories_router
+from app.routers.promises import router as promises_router
 
 __all__ = [
     "auth_router",
@@ -22,4 +23,5 @@ __all__ = [
     "history_router",
     "anomalies_router",
     "categories_router",
+    "promises_router",
 ]

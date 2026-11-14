@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Custom HTTP server for ClaireFinance Frontend with Cross-Origin-Opener-Policy support.
+Custom HTTP server for Clairfinance Frontend with Cross-Origin-Opener-Policy support.
 Required by Google Identity Services OAuth popup to prevent blank screen issues in modern browsers.
 """
 import http.server
@@ -34,7 +34,7 @@ class SecurityHeadersHandler(http.server.SimpleHTTPRequestHandler):
 def run():
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer(("0.0.0.0", PORT), SecurityHeadersHandler) as httpd:
-        print(f"🎨 ClaireFinance Frontend serving from {DIRECTORY} on http://localhost:{PORT}")
+        print(f"🎨 Clairfinance Frontend serving from {DIRECTORY} on http://localhost:{PORT}")
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:

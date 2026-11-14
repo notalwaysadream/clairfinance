@@ -15,7 +15,7 @@ async def test_health_check():
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "healthy"
-        assert "ClaireFinance API" in data["app"]
+        assert "Clairfinance API" in data["app"]
 
 @pytest.mark.asyncio
 async def test_personas_and_switching():

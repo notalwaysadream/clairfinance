@@ -1,4 +1,4 @@
-// ClairFinance — Frontend Engine & Backend Integration
+// Clairfinance — Frontend Engine & Backend Integration
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
 const main = $('#main');

@@ -444,3 +444,413 @@ button.calendar-day.selected { border-color: var(--sec); box-shadow: 0 0 0 2px v
   .badge-themes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .badge-actions { grid-template-columns: 1fr; }
 }
+
+/* -------------------------------------------------------------
+   REFINED PROMISES STYLES & MONTE CARLO VISUALIZATIONS
+   (Theme-aware, high-contrast, strictly avoids harsh black)
+------------------------------------------------------------- */
+.promise-feature-banner {
+  position: relative;
+  border-radius: 24px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--pri) 38%, var(--gb));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--pri) 16%, var(--card)) 0%, color-mix(in srgb, var(--sec) 10%, var(--card)) 100%);
+  box-shadow: 0 14px 34px var(--sh);
+  margin-bottom: 22px;
+  transition: transform .3s var(--e), box-shadow .3s var(--e), border-color .3s var(--e);
+  cursor: pointer;
+  text-decoration: none;
+  display: block;
+}
+.promise-feature-banner:hover {
+  transform: translateY(-3px);
+  border-color: var(--sec);
+  box-shadow: 0 20px 48px var(--sh), 0 0 28px color-mix(in srgb, var(--sec) 25%, transparent);
+}
+.pfb-backdrop {
+  position: absolute;
+  inset: 0;
+  background: url(assets/promise-pinky.jpg) right center / cover no-repeat;
+  opacity: .22;
+  transition: opacity .35s var(--e), transform .4s var(--e);
+  z-index: 0;
+}
+.promise-feature-banner:hover .pfb-backdrop {
+  opacity: .32;
+  transform: scale(1.02);
+}
+.pfb-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--card) 96%, transparent) 0%, color-mix(in srgb, var(--card) 85%, transparent) 55%, color-mix(in srgb, var(--card) 35%, transparent) 100%);
+  z-index: 1;
+}
+.pfb-content {
+  position: relative;
+  z-index: 2;
+  padding: clamp(24px, 3.5vw, 36px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+.pfb-text { max-width: 650px; }
+.pfb-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--pri) 20%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--pri) 40%, var(--gb));
+  color: var(--sec);
+  font: 700 11px Inter;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.pfb-content h2 {
+  font-family: var(--hd);
+  font-size: clamp(22px, 3vw, 30px);
+  line-height: 1.25;
+  margin-bottom: 8px;
+  color: var(--fg);
+}
+.pfb-content p {
+  color: var(--mut);
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+.pfb-cta {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 24px;
+  border-radius: 14px;
+  background: linear-gradient(90deg, var(--pri), var(--glow));
+  color: #ffffff !important;
+  font: 600 14px Inter;
+  border: 0;
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--pri) 40%, transparent);
+  transition: transform .25s var(--e), box-shadow .25s var(--e);
+}
+.promise-feature-banner:hover .pfb-cta {
+  transform: translateX(4px);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--pri) 55%, transparent);
+}
+
+/* Promises Page Layout */
+.promises-hero-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  padding: clamp(24px, 4vw, 40px);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--pri) 14%, var(--card)), color-mix(in srgb, var(--sec) 8%, var(--card)));
+  border: 1px solid var(--gb);
+  box-shadow: 0 14px 34px var(--sh);
+  margin-bottom: 24px;
+}
+.promises-hero-bg {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 50%;
+  height: 100%;
+  background: url(assets/promise-hands.jpg) center/cover no-repeat;
+  opacity: .18;
+  mask-image: linear-gradient(to left, rgba(0,0,0,0.8) 0%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to left, rgba(0,0,0,0.8) 0%, transparent 100%);
+  pointer-events: none;
+}
+.promises-ctrl-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+.ctrl-tile {
+  background: var(--card);
+  border: 1px solid var(--bd);
+  box-shadow: 0 4px 16px var(--sh);
+  border-radius: 16px;
+  padding: 14px 18px;
+}
+.ctrl-tile label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--mut);
+  margin-bottom: 8px;
+}
+.ctrl-tile input[type="number"], .ctrl-tile input[type="text"] {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--bd);
+  background: var(--bg);
+  color: var(--fg);
+  font: 600 15px Inter;
+  outline: 0;
+  transition: border-color .2s, box-shadow .2s;
+}
+.ctrl-tile input[type="number"]:focus, .ctrl-tile input[type="text"]:focus {
+  border-color: var(--pri);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pri) 25%, transparent);
+}
+.ctrl-tile input[type="range"] {
+  width: 100%;
+  accent-color: var(--sec);
+  cursor: pointer;
+}
+
+/* Promise Statement Banner */
+.promise-guarantee-box {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--pri) 14%, var(--card)), color-mix(in srgb, var(--sec) 10%, var(--card)));
+  border: 1px solid color-mix(in srgb, var(--pri) 40%, var(--gb));
+  border-radius: 20px;
+  padding: 24px 28px;
+  margin-bottom: 24px;
+  position: relative;
+  box-shadow: 0 10px 28px var(--sh);
+}
+.pgb-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--sec);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.pgb-headline {
+  font-size: clamp(20px, 2.6vw, 28px);
+  font-family: var(--hd);
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--fg);
+}
+.pgb-headline mark {
+  background: transparent;
+  color: var(--sec);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--sec) 50%, transparent);
+  text-underline-offset: 4px;
+  font-weight: 800;
+}
+.pgb-stats {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  font-size: 13px;
+}
+.pgb-stats span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--card);
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  color: var(--fg);
+  font-size: 13px;
+  box-shadow: 0 2px 8px var(--sh);
+}
+.pgb-stats span b {
+  color: var(--sec);
+}
+
+/* Interactive Fan Chart */
+.fan-chart-wrapper {
+  background: var(--card);
+  border: 1px solid var(--bd);
+  border-radius: 18px;
+  padding: 20px;
+  margin-top: 18px;
+  box-shadow: 0 4px 16px var(--sh);
+}
+.fan-chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.fan-chart-legend {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--mut);
+}
+.fan-chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+.fcl-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+/* Promise 2: Bill Simulator & Urgency */
+.bill-sim-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+@media (max-width: 900px) {
+  .bill-sim-grid { grid-template-columns: 1fr; }
+}
+.risk-meter-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  background: var(--card);
+  border: 1px solid var(--bd);
+  box-shadow: 0 4px 16px var(--sh);
+  border-radius: 18px;
+  padding: 20px;
+  margin-bottom: 18px;
+}
+.risk-node {
+  text-align: center;
+}
+.risk-node small {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--mut);
+  font-weight: 600;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+.risk-node b {
+  font-size: clamp(24px, 3.2vw, 36px);
+  font-family: var(--hd);
+}
+.risk-arrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--bad);
+  font-size: 12px;
+  font-weight: 700;
+}
+.risk-arrow svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+}
+
+/* Urgency Alert Badge */
+.urgency-badge {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--bad) 10%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--bad) 35%, var(--gb));
+  color: var(--fg);
+  margin-bottom: 18px;
+  box-shadow: 0 4px 16px var(--sh);
+}
+.urgency-badge b {
+  color: var(--bad);
+}
+.urgency-badge p {
+  color: var(--fg);
+}
+.urgency-icon {
+  font-size: 26px;
+  flex-shrink: 0;
+}
+
+/* Action Plan Roadmap */
+.action-plan-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+.action-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 16px;
+  border-radius: 12px;
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  font-size: 13.5px;
+  color: var(--fg);
+  transition: background .2s ease, border-color .2s ease;
+}
+.action-item:hover {
+  background: var(--hover);
+  border-color: var(--pri);
+}
+.action-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* Upside Note */
+.upside-note-banner {
+  background: color-mix(in srgb, var(--ok) 10%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--ok) 35%, var(--gb));
+  border-radius: 16px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-top: 18px;
+  font-size: 13.5px;
+  color: var(--fg);
+  line-height: 1.55;
+  box-shadow: 0 4px 16px var(--sh);
+}
+.upside-note-banner b {
+  color: var(--ok);
+}
+
+/* Backtest Calibration Card */
+.backtest-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 24px;
+  margin-top: 16px;
+}
+@media (max-width: 900px) {
+  .backtest-grid { grid-template-columns: 1fr; }
+}
+.bt-badge-verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--ok) 15%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--ok) 45%, var(--gb));
+  color: var(--ok);
+  font: 700 12px Inter;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}

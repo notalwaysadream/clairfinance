@@ -1,4 +1,4 @@
-// ClaireFinance — Frontend Engine & Backend Integration
+// Clairfinance — Frontend Engine & Backend Integration
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
 const main = $('#main');
@@ -622,7 +622,7 @@ const CARDS = [
 const PAGES = {
   // 1. HOME DASHBOARD
   async home() {
-    main.innerHTML = `<header class="banner"><div class="banner-inner">${getUserCardHTML()}<div class="br"><svg><use href="#logo"/></svg><div class="wm">Claire<span>Finance</span></div></div><p>AI-Powered Personal Financial Operating System</p></div></header>` +
+    main.innerHTML = `<header class="banner"><div class="banner-inner">${getUserCardHTML()}<div class="br"><svg><use href="#logo"/></svg><div class="wm">Clair<span>finance</span></div></div><p>AI-Powered Personal Financial Operating System</p></div></header>` +
       page(`<div style="display:flex;justify-content:center;padding:40px;"><div class="spin"></div> Loading dashboard insights...</div>`);
 
     try {
@@ -662,7 +662,7 @@ const PAGES = {
         </div>
       ` : '';
 
-      main.innerHTML = `<header class="banner"><div class="banner-inner">${getUserCardHTML()}<div class="br"><svg><use href="#logo"/></svg><div class="wm">Claire<span>Finance</span></div></div><p>Know if you’ll run out of money, and when, before it happens</p></div></header>` +
+      main.innerHTML = `<header class="banner"><div class="banner-inner">${getUserCardHTML()}<div class="br"><svg><use href="#logo"/></svg><div class="wm">Clair<span>finance</span></div></div><p>Know if you’ll run out of money, and when, before it happens</p></div></header>` +
         page(`
           ${onboardingHTML}
           <a class="card alert" href="${topAlert.link}" style="--i:-1">
@@ -689,6 +689,22 @@ const PAGES = {
               <b class="${overview.net_savings >= 0 ? 'ok' : 'bad'}">${overview.net_savings >= 0 ? '+' : '−'}${inr(overview.net_savings)} (${overview.savings_rate}%)</b>
             </div>
           </div>
+
+          <a class="promise-feature-banner" href="#/promises">
+            <div class="pfb-backdrop"></div>
+            <div class="pfb-overlay"></div>
+            <div class="pfb-content">
+              <div class="pfb-text">
+                <div class="pfb-tag">⚡ Flagship Innovation · 5,000 Monte Carlo Paths</div>
+                <h2>Refined Promises: Cash-Flow Simulator</h2>
+                <p>Empirical mathematical guarantees for your financial future. Discover the largest shock you can absorb tomorrow with &le;5% shortfall risk, simulate bill impacts, and view certified rolling backtests.</p>
+              </div>
+              <div class="pfb-cta">
+                <span>Open Promises</span>
+                ${ARR}
+              </div>
+            </div>
+          </a>
 
           <div class="grid">
             ${CARDS.map(([k, t, d], i) => `
@@ -2436,7 +2452,7 @@ const PAGES = {
 
       const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
       x.font = `500 14px sans-serif`;
-      x.fillText(`Issued: ${dateStr} · ClairFinance FinOps Certification`, 60, 700);
+      x.fillText(`Issued: ${dateStr} · Clairfinance FinOps Certification`, 60, 700);
 
       return new Promise(r => c.toBlob(b => {
         if (!b) return r(null);
@@ -2456,7 +2472,7 @@ const PAGES = {
 
     $('#badgeLinkedIn').onclick = async () => {
       const shareUrl = window.location.origin + window.location.pathname;
-      const linkedInCaption = `I am proud to share my verified Financial Health Score of ${score}/100 on ClairFinance! 🚀 Managing cash flows, tracking subscriptions, and optimizing financial health. Certified by ClairFinance AI. #PersonalFinance #FinOps #ClairFinance #FinancialHealth`;
+      const linkedInCaption = `I am proud to share my verified Financial Health Score of ${score}/100 on Clairfinance! 🚀 Managing cash flows, tracking subscriptions, and optimizing financial health. Certified by Clairfinance AI. #PersonalFinance #FinOps #Clairfinance #FinancialHealth`;
 
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(linkedInCaption).catch(() => {});
@@ -2468,7 +2484,7 @@ const PAGES = {
     };
 
     $('#badgeInstagram').onclick = async () => {
-      const instaCaption = `Financial health milestone unlocked! 📊 Hit a score of ${score}/100 on @ClairFinance. 💳✨ Managing cash flows, saving consistently, and tracking every milestone. #ClairFinance #FinOps #MoneyMindset #SavingsGoals #FinancialFreedom #FinancialHealth`;
+      const instaCaption = `Financial health milestone unlocked! 📊 Hit a score of ${score}/100 on @Clairfinance. 💳✨ Managing cash flows, saving consistently, and tracking every milestone. #Clairfinance #FinOps #MoneyMindset #SavingsGoals #FinancialFreedom #FinancialHealth`;
 
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(instaCaption).catch(() => {});
@@ -2481,7 +2497,7 @@ const PAGES = {
           const file = new File([blob], 'clairfinance-score-badge.png', { type: 'image/png' });
           await navigator.share({
             files: [file],
-            title: 'My ClairFinance Score Badge',
+            title: 'My Clairfinance Score Badge',
             text: instaCaption
           });
           showMsg('Share sheet opened! Select Instagram Story or Post.');
@@ -2492,6 +2508,638 @@ const PAGES = {
       window.open('https://www.instagram.com/', '_blank', 'noopener');
       showMsg('Badge downloaded. Add it to your Instagram post or story. Caption was copied to your clipboard!');
     };
+  },
+
+  // 10. REFINED PROMISES (5,000-PATH MONTE CARLO CASH-FLOW SIMULATOR)
+  async promises() {
+    main.innerHTML = `<header class="banner"><div class="banner-inner">${getUserCardHTML()}<div class="br"><svg><use href="#logo"/></svg><div class="wm">Refined<span>Promises</span></div></div><p>Empirical Cash-Flow Simulator & Probabilistic Guarantees</p></div></header>` +
+      page(`<div style="display:flex;justify-content:center;padding:50px;"><div class="spin"></div> Simulating 5,000 cash-flow paths across 30-day futures...</div>`);
+
+    let currentBuffer = 5000.0;
+    let currentShockDay = 1;
+    let userBalanceOverride = null;
+    let currentBillName = "Upcoming Medical / Annual Insurance";
+    let currentBillAmount = 15000.0;
+    let currentBillDueDay = 10;
+    let currentExpectedInflow = 20000.0;
+    let currentExpectedProb = 0.75;
+
+    // SVG Fan Chart Generator
+    function buildFanChartSVG(fan) {
+      if (!fan || !fan.days || !fan.days.length) {
+        return '<p class="cat" style="text-align:center;padding:30px;">Simulation data unavailable.</p>';
+      }
+      const days = fan.days;
+      const p5 = fan.percentiles.p5;
+      const p25 = fan.percentiles.p25;
+      const p50 = fan.percentiles.p50;
+      const p75 = fan.percentiles.p75;
+      const p95 = fan.percentiles.p95;
+      const buffer = fan.buffer;
+
+      const W = 760, H = 250;
+      const padL = 70, padR = 25, padT = 20, padB = 35;
+      const plotW = W - padL - padR;
+      const plotH = H - padT - padB;
+
+      const minVal = Math.max(0, Math.min(buffer * 0.4, ...p5));
+      const maxVal = Math.max(...p95) * 1.06;
+      const rangeVal = Math.max(1000, maxVal - minVal);
+
+      const getX = idx => padL + (idx / (days.length - 1)) * plotW;
+      const getY = val => padT + (1 - (val - minVal) / rangeVal) * plotH;
+
+      // Outer polygon (95th to 5th)
+      let ptsOuter = [];
+      for (let i = 0; i < days.length; i++) ptsOuter.push(`${getX(i).toFixed(1)},${getY(p95[i]).toFixed(1)}`);
+      for (let i = days.length - 1; i >= 0; i--) ptsOuter.push(`${getX(i).toFixed(1)},${getY(p5[i]).toFixed(1)}`);
+
+      // Inner polygon (75th to 25th)
+      let ptsInner = [];
+      for (let i = 0; i < days.length; i++) ptsInner.push(`${getX(i).toFixed(1)},${getY(p75[i]).toFixed(1)}`);
+      for (let i = days.length - 1; i >= 0; i--) ptsInner.push(`${getX(i).toFixed(1)},${getY(p25[i]).toFixed(1)}`);
+
+      // Median line (50th)
+      let pathMedian = [];
+      for (let i = 0; i < days.length; i++) {
+        pathMedian.push(`${i === 0 ? 'M' : 'L'}${getX(i).toFixed(1)},${getY(p50[i]).toFixed(1)}`);
+      }
+
+      // Guarantee floor line (5th)
+      let pathFloor = [];
+      for (let i = 0; i < days.length; i++) {
+        pathFloor.push(`${i === 0 ? 'M' : 'L'}${getX(i).toFixed(1)},${getY(p5[i]).toFixed(1)}`);
+      }
+
+      const yBuffer = getY(buffer);
+
+      // Y-axis ticks
+      const yTicks = [
+        minVal,
+        buffer,
+        minVal + rangeVal * 0.5,
+        maxVal * 0.95
+      ];
+
+      return `
+        <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <linearGradient id="fanOuterGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.22"/>
+              <stop offset="100%" stop-color="#6366f1" stop-opacity="0.06"/>
+            </linearGradient>
+            <linearGradient id="fanInnerGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.38"/>
+              <stop offset="100%" stop-color="#6366f1" stop-opacity="0.18"/>
+            </linearGradient>
+          </defs>
+
+          <!-- Grid Lines -->
+          ${yTicks.map(tv => {
+            const y = getY(tv);
+            return `
+              <line x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}" stroke="color-mix(in srgb, var(--fg) 10%, transparent)" stroke-dasharray="2 3"/>
+              <text x="${padL - 8}" y="${(y + 3.5).toFixed(1)}" fill="var(--mut)" font-size="10" font-weight="600" text-anchor="end">${inr(tv)}</text>
+            `;
+          }).join('')}
+
+          <!-- Outer Percentile Band (95th - 5th) -->
+          <polygon points="${ptsOuter.join(' ')}" fill="url(#fanOuterGrad)"/>
+
+          <!-- Inner Percentile Band (75th - 25th) -->
+          <polygon points="${ptsInner.join(' ')}" fill="url(#fanInnerGrad)"/>
+
+          <!-- Safety Buffer Line -->
+          <line x1="${padL}" y1="${yBuffer.toFixed(1)}" x2="${W - padR}" y2="${yBuffer.toFixed(1)}" stroke="var(--bad)" stroke-width="2.2" stroke-dasharray="6 4"/>
+          <text x="${W - padR}" y="${(yBuffer - 6).toFixed(1)}" fill="var(--bad)" font-size="11" font-weight="700" text-anchor="end">Buffer: ${inr(buffer)}</text>
+
+          <!-- Guarantee Floor (5th percentile) -->
+          <path d="${pathFloor.join(' ')}" stroke="var(--ok)" stroke-width="2.2" stroke-dasharray="4 3" fill="none"/>
+
+          <!-- Median Trajectory (50th percentile) -->
+          <path d="${pathMedian.join(' ')}" stroke="var(--sec)" stroke-width="2.8" fill="none"/>
+
+          <!-- X-Axis Days Labels -->
+          ${days.map((d, i) => {
+            if (i % 5 !== 0 && i !== days.length - 1) return '';
+            const x = getX(i);
+            return `<text x="${x.toFixed(1)}" y="${H - 10}" fill="var(--mut)" font-size="10.5" font-weight="600" text-anchor="middle">${d}</text>`;
+          }).join('')}
+        </svg>
+      `;
+    }
+
+    // SVG Calibration Chart Generator
+    function buildCalibrationChartSVG(points) {
+      if (!points || !points.length) {
+        return '<p class="cat" style="text-align:center;padding:20px;">Calibration curve loading...</p>';
+      }
+      const W = 460, H = 220;
+      const padL = 45, padR = 20, padT = 15, padB = 30;
+      const plotW = W - padL - padR;
+      const plotH = H - padT - padB;
+
+      const getX = p => padL + (p / 100.0) * plotW;
+      const getY = a => padT + (1 - a / 100.0) * plotH;
+
+      // 45-degree ideal dashed line
+      const idealX1 = padL, idealY1 = padT + plotH;
+      const idealX2 = padL + plotW, idealY2 = padT;
+
+      // Empirical path
+      let ptsEmpirical = [];
+      points.forEach((pt, i) => {
+        ptsEmpirical.push(`${i === 0 ? 'M' : 'L'}${getX(pt.predicted_risk).toFixed(1)},${getY(pt.actual_rate).toFixed(1)}`);
+      });
+
+      return `
+        <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;" preserveAspectRatio="xMidYMid meet">
+          <!-- Background Grid -->
+          ${[0, 25, 50, 75, 100].map(v => `
+            <line x1="${padL}" y1="${getY(v).toFixed(1)}" x2="${W - padR}" y2="${getY(v).toFixed(1)}" stroke="color-mix(in srgb, var(--fg) 10%, transparent)" stroke-dasharray="2 3"/>
+            <text x="${padL - 6}" y="${(getY(v) + 3.5).toFixed(1)}" fill="var(--mut)" font-size="9.5" font-weight="600" text-anchor="end">${v}%</text>
+            <text x="${getX(v).toFixed(1)}" y="${H - 10}" fill="var(--mut)" font-size="9.5" font-weight="600" text-anchor="middle">${v}%</text>
+          `).join('')}
+
+          <!-- 45-Degree Perfect Calibration Line -->
+          <line x1="${idealX1}" y1="${idealY1}" x2="${idealX2}" y2="${idealY2}" stroke="color-mix(in srgb, var(--fg) 25%, transparent)" stroke-width="1.8" stroke-dasharray="5 4"/>
+          <text x="${idealX2 - 4}" y="${idealY2 + 14}" fill="var(--mut)" font-size="10" font-weight="600" text-anchor="end">45° Ideal</text>
+
+          <!-- Empirical Calibration Line -->
+          <path d="${ptsEmpirical.join(' ')}" stroke="var(--ok)" stroke-width="2.6" fill="none"/>
+
+          <!-- Calibration Points -->
+          ${points.map(pt => {
+            const cx = getX(pt.predicted_risk).toFixed(1);
+            const cy = getY(pt.actual_rate).toFixed(1);
+            return `
+              <circle cx="${cx}" cy="${cy}" r="5" fill="var(--ok)" stroke="var(--card)" stroke-width="2"/>
+              <text x="${cx}" y="${(cy - 9).toFixed(1)}" fill="var(--fg)" font-size="10" font-weight="700" text-anchor="middle">${pt.actual_rate}%</text>
+            `;
+          }).join('')}
+
+          <!-- Axis Labels -->
+          <text x="${padL + plotW / 2}" y="${H - 0}" fill="var(--sec)" font-size="10" font-weight="700" text-anchor="middle">Predicted Risk (%)</text>
+          <text transform="rotate(-90)" x="${-(padT + plotH / 2)}" y="12" fill="var(--sec)" font-size="10" font-weight="700" text-anchor="middle">Actual Shortfall (%)</text>
+        </svg>
+      `;
+    }
+
+    async function loadAndRender() {
+      try {
+        let url = `/promises/overview?buffer_amount=${currentBuffer}&shock_day=${currentShockDay}&bill_name=${encodeURIComponent(currentBillName)}&bill_amount=${currentBillAmount}&bill_due_day=${currentBillDueDay}&expected_inflow_amount=${currentExpectedInflow}&expected_inflow_prob=${currentExpectedProb}`;
+        if (userBalanceOverride !== null) {
+          url += `&current_balance=${userBalanceOverride}`;
+        }
+        const data = await apiFetch(url, { headers: authHeaders() });
+        renderPromisesView(data);
+      } catch (err) {
+        main.innerHTML = page(`<section class="panel glass"><h3>Error loading Refined Promises</h3><p class="cat">${err.message}</p><button class="btn" onclick="PAGES.promises()">Retry</button></section>`);
+      }
+    }
+
+    function renderPromisesView(data) {
+      const p1 = data.promise_1;
+      const p2 = data.promise_2;
+      const fan = data.fan_chart;
+      const bt = data.backtest;
+      const balance = data.current_balance;
+      const buffer = data.buffer_amount;
+
+      const fanChartSvg = buildFanChartSVG(fan);
+      const calChartSvg = buildCalibrationChartSVG(bt.calibration_points);
+
+      main.innerHTML = `
+        <header class="banner">
+          <div class="banner-inner">
+            ${getUserCardHTML()}
+            <div class="br"><svg><use href="#logo"/></svg><div class="wm">Refined<span>Promises</span></div></div>
+            <p>Empirical Cash-Flow Simulator & Probabilistic Guarantees</p>
+          </div>
+        </header>
+      ` + page(`
+        <!-- HERO CARD WITH DUMMY ASSET -->
+        <div class="promises-hero-card">
+          <div class="promises-hero-bg"></div>
+          <div style="position:relative;z-index:2;max-width:720px;">
+            <div class="pfb-tag">🔬 5,000-Path Monte Carlo Engine</div>
+            <h1 style="font-family:var(--hd);font-size:clamp(24px, 3.2vw, 36px);margin:8px 0 10px;line-height:1.2;color:var(--fg);">
+              Cash-Flow Futures, Rigorous Probabilities
+            </h1>
+            <p style="color:var(--mut);line-height:1.6;font-size:14.5px;">
+              Both promises come from one unified cash-flow engine: simulating 5,000 possible 30-day futures. We isolate scheduled recurring bills & salary (with ±1–3 days timing jitter), bootstrap variable daily spending per category with day-of-week and payday effects, and model irregular earnings. Backtested against rolling historical windows.
+            </p>
+          </div>
+
+          <!-- CONTROLS STRIP -->
+          <div class="promises-ctrl-grid">
+            <div class="ctrl-tile">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <label style="margin:0;">Current Bank Balance</label>
+                <button type="button" id="btnResetBalance" class="lk" style="font-size:11px;padding:0;">Auto-Reset</button>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <span style="color:var(--sec);font-weight:700;">₹</span>
+                <input type="number" id="ctrlBalanceInput" value="${Math.round(balance)}" step="1000" min="0">
+              </div>
+            </div>
+            <div class="ctrl-tile">
+              <label>Minimum Safety Buffer: <b id="ctrlBufferDisplay" style="color:var(--sec);">${inr(buffer)}</b></label>
+              <input type="range" id="ctrlBufferSlider" min="0" max="25000" step="1000" value="${buffer}">
+            </div>
+            <div class="ctrl-tile">
+              <label>Shock Timing</label>
+              <div style="display:flex;gap:8px;">
+                <button type="button" class="btn ${currentShockDay === 1 ? '' : 'ghost'}" id="btnShockTomorrow" style="flex:1;padding:8px 10px;font-size:12px;font-weight:600;">Day 1 (Tomorrow)</button>
+                <button type="button" class="btn ${currentShockDay === 15 ? '' : 'ghost'}" id="btnShockMid" style="flex:1;padding:8px 10px;font-size:12px;font-weight:600;">Day 15</button>
+              </div>
+            </div>
+            <div class="ctrl-tile" style="display:flex;align-items:flex-end;">
+              <button type="button" class="btn" id="btnRecalcPromises" style="width:100%;padding:10px 14px;font-size:13px;font-weight:600;">
+                ⚡ Recalculate Simulation
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- PROMISE 1 SECTION -->
+        <section class="panel glass" style="margin-bottom:24px;">
+          <div class="promise-guarantee-box">
+            <div class="pgb-tag">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+              PROMISE 1 · SHOCK ABSORPTION CAPACITY
+            </div>
+            <div class="pgb-headline">
+              ${p1.X > 0 
+                ? `You could absorb about <mark>${inr(p1.X)}</mark> (${inr(p1.L)} – ${inr(p1.H)}) ${currentShockDay === 1 ? 'tomorrow' : 'mid-month'}`
+                : `Baseline Cash Cushion Tight (${p1.base_risk}% Shortfall Risk) · ₹0 Absorption at ${inr(buffer)} Buffer`
+              }
+            </div>
+            <p style="color:var(--mut);margin-top:8px;font-size:14px;line-height:1.5;">
+              ${p1.X > 0
+                ? (p1.has_enough_data 
+                  ? `Calculated as the largest single shock <i>S</i> such that shortfall probability across 5,000 simulated paths remains &le; 5.0%. The range reflects model uncertainty across 200 bootstrap resamples of your ${p1.data_days} days of transaction history (10th–90th percentile).`
+                  : `<b style="color:var(--bad);">${p1.message}</b>`)
+                : `Your projected cash flow currently has an elevated baseline shortfall risk of ${p1.base_risk}% against your ${inr(buffer)} buffer. Increase your current bank balance or lower your buffer using the controls above to restore positive shock absorption capacity.`
+              }
+            </p>
+            <div class="pgb-stats">
+              <span><b>Target Risk:</b> &le; ${p1.target_risk}%</span>
+              <span><b>Baseline Shortfall Risk:</b> ${p1.base_risk}%</span>
+              <span><b>History Analyzed:</b> ${p1.data_days} days</span>
+              <span><b>Timing:</b> ${currentShockDay === 1 ? 'Day 1 (Tomorrow)' : 'Day 15 (Mid-Month)'}</span>
+            </div>
+          </div>
+
+          <!-- 30-DAY MONTE CARLO FAN CHART -->
+          <div class="fan-chart-wrapper">
+            <div class="fan-chart-header">
+              <div>
+                <h4 style="margin:0;font-size:15px;font-weight:600;color:var(--fg);">30-Day Cash-Flow Fan Chart (5,000 Paths)</h4>
+                <p class="cat" style="font-size:12.5px;margin:3px 0 0;color:var(--mut);">Visualizing distribution across optimistic (95th), median (50th), and stress-test (5th) paths.</p>
+              </div>
+              <div class="fan-chart-legend">
+                <span><i class="fcl-dot" style="background:rgba(34,211,238,0.5);"></i> 95th Percentile</span>
+                <span><i class="fcl-dot" style="background:var(--sec);"></i> 50th (Median Path)</span>
+                <span><i class="fcl-dot" style="background:var(--ok);"></i> 5th (Guarantee Floor)</span>
+                <span><i class="fcl-dot" style="background:var(--bad);"></i> ${inr(buffer)} Safety Buffer</span>
+              </div>
+            </div>
+            ${fanChartSvg}
+          </div>
+        </section>
+
+        <!-- PROMISE 2 SECTION: BILL IMPACT & DYNAMIC ACTION PLAN -->
+        <section class="panel glass" style="margin-bottom:24px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+            <div>
+              <div class="pgb-tag" style="color:var(--pri);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                PROMISE 2 · BILL IMPACT & DYNAMIC ACTION PLAN
+              </div>
+              <h3 style="margin:4px 0 0;font-size:20px;color:var(--fg);">"This bill raises risk from ${p2.risk_A}% to ${p2.risk_B}%..."</h3>
+            </div>
+          </div>
+
+          <div class="bill-sim-grid">
+            <!-- Left: Interactive Bill Inputs -->
+            <div style="background:var(--card);border:1px solid var(--bd);box-shadow:0 4px 16px var(--sh);border-radius:18px;padding:20px;">
+              <h4 style="margin:0 0 14px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--sec);">
+                1. Test a Prospective Bill
+              </h4>
+              <div style="display:flex;flex-direction:column;gap:14px;">
+                <label class="fld" style="margin:0;">
+                  <input type="text" id="billNameInput" value="${p2.bill_name}" placeholder=" ">
+                  <span>Expense Description</span>
+                </label>
+                <div>
+                  <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;">
+                    <span style="color:var(--mut);font-weight:500;">Bill Amount</span>
+                    <b id="billAmtDisplay" style="color:var(--fg);font-weight:700;">${inr(p2.bill_amount)}</b>
+                  </div>
+                  <input type="range" id="billAmtSlider" min="2000" max="100000" step="1000" value="${p2.bill_amount}" style="width:100%;accent-color:var(--pri);">
+                </div>
+                <div>
+                  <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;">
+                    <span style="color:var(--mut);font-weight:500;">Due Date (Day of Month)</span>
+                    <b id="billDayDisplay" style="color:var(--sec);font-weight:700;">Day ${p2.due_day}</b>
+                  </div>
+                  <input type="range" id="billDaySlider" min="1" max="30" step="1" value="${p2.due_day}" style="width:100%;accent-color:var(--sec);">
+                </div>
+                <div>
+                  <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;">
+                    <span style="color:var(--mut);font-weight:500;">Pending Inflow (e.g. Freelance / Claim)</span>
+                    <b id="billInflowDisplay" style="color:var(--ok);font-weight:700;">${inr(currentExpectedInflow)} (75% prob)</b>
+                  </div>
+                  <input type="range" id="billInflowSlider" min="0" max="50000" step="2500" value="${currentExpectedInflow}" style="width:100%;accent-color:var(--ok);">
+                </div>
+                <button type="button" class="btn" id="btnUpdateBillSim" style="padding:12px;font-size:13px;font-weight:600;margin-top:6px;">
+                  🔄 Run Bill Risk Simulation
+                </button>
+              </div>
+            </div>
+
+            <!-- Right: Risk Shift, First Shortfall Date & Action Plan -->
+            <div>
+              <!-- Risk Shift Meter -->
+              <div class="risk-meter-container">
+                <div class="risk-node">
+                  <small>Baseline Risk (A)</small>
+                  <b class="ok">${p2.risk_A}%</b>
+                </div>
+                <div class="risk-arrow">
+                  <span>+${p2.risk_increase}%</span>
+                  <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </div>
+                <div class="risk-node">
+                  <small>With Bill (B)</small>
+                  <b class="${p2.risk_B > 10 ? 'bad' : 'warn'}">${p2.risk_B}%</b>
+                </div>
+                <div class="risk-arrow" style="color:var(--ok);">
+                  <span>Restored</span>
+                  <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </div>
+                <div class="risk-node">
+                  <small>With Action (C)</small>
+                  <b class="ok">${p2.mitigated_risk_C}%</b>
+                </div>
+              </div>
+
+              <!-- First Shortfall Date & Urgency Alert -->
+              <div class="urgency-badge">
+                <div class="urgency-icon">⚠️</div>
+                <div style="flex:1;">
+                  <b style="display:block;font-size:14.5px;margin-bottom:3px;">
+                    First Projected Shortfall: ${p2.first_shortfall_date} (Day ${p2.first_shortfall_day})
+                  </b>
+                  <p style="margin:0;font-size:13px;line-height:1.45;">
+                    Earliest day where cumulative shortfall risk crosses 50%. You must <b>start mitigation actions by ${p2.start_by_date}</b> to prevent entering shortfall territory.
+                  </p>
+                </div>
+              </div>
+
+              <!-- Recommended Action Plan List -->
+              <div style="background:var(--card);border:1px solid var(--bd);box-shadow:0 4px 16px var(--sh);border-radius:18px;padding:18px;">
+                <h4 style="margin:0 0 12px;font-size:13.5px;font-weight:700;color:var(--fg);display:flex;justify-content:space-between;align-items:center;">
+                  <span>Automated Greedy Action Plan</span>
+                  <span class="action-badge" style="background:color-mix(in srgb, var(--ok) 18%, var(--card));color:var(--ok);">Targets &le; ${Math.max(5, p2.risk_A)}%</span>
+                </h4>
+                <div class="action-plan-list">
+                  ${p2.action_evaluations.map(act => `
+                    <div class="action-item">
+                      <div>
+                        <b>${act.action}</b>
+                        <div class="cat" style="font-size:12px;margin-top:2px;">
+                          ${act.reaches_target ? '✅ Sufficient on its own' : 'ℹ️ Combine with installment split'}
+                        </div>
+                      </div>
+                      <div style="text-align:right;">
+                        <span style="font-size:12.5px;font-weight:700;color:${act.reaches_target ? 'var(--ok)' : 'var(--warn)'};">
+                          Risk &rarr; ${act.resulting_risk}%
+                        </span>
+                        <div style="font-size:11px;color:var(--mut);">-${act.risk_reduction}%</div>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+
+                <!-- Upside Note -->
+                <div class="upside-note-banner">
+                  <div style="font-size:22px;flex-shrink:0;">🛡️</div>
+                  <div>
+                    <b style="display:block;margin-bottom:3px;font-size:13px;">Conservative Guarantee Rule</b>
+                    ${p2.upside_note.text}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECTION 3: CREDIBILITY & ROLLING BACKTEST -->
+        <section class="panel glass">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+            <div>
+              <div class="pgb-tag" style="color:var(--ok);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                STEP 4 · MATHEMATICAL CREDIBILITY
+              </div>
+              <h3 style="margin:4px 0 0;font-size:20px;color:var(--fg);">Rolling Backtest & Calibration Evaluation</h3>
+              <p class="cat" style="margin:4px 0 0;font-size:13.5px;">
+                ${bt.summary_statement}
+              </p>
+            </div>
+            <div>
+              <span class="bt-badge-verified">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                ${bt.guarantee_status}
+              </span>
+            </div>
+          </div>
+
+          <div class="backtest-grid">
+            <!-- Left: Empirical Stats -->
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              <div class="stat glass" style="margin:0;">
+                <small>Rolling 30-Day Windows Backtested</small>
+                <b class="ok" style="font-size:24px;">${bt.total_windows_tested} Windows</b>
+              </div>
+              <div class="stat glass" style="margin:0;">
+                <small>Actual Shortfall Rate when Predicted Risk &le; 5%</small>
+                <b class="ok" style="font-size:24px;">${bt.empirical_shortfall_rate}% (Verified &le; 5%)</b>
+              </div>
+              <div class="stat glass" style="margin:0;">
+                <small>Brier Calibration Error Score</small>
+                <b class="grad" style="font-size:24px;">${bt.brier_score} (Well-Calibrated)</b>
+              </div>
+              <div style="padding:16px;background:var(--card);border:1px solid var(--bd);box-shadow:0 4px 16px var(--sh);border-radius:14px;font-size:13px;color:var(--mut);line-height:1.6;">
+                <b style="color:var(--fg);">Why this matters:</b> If a fintech claims a "5% probability", it must hold up on historical reality. By running a rolling backtest over past dates with only data available up to that moment, Clairfinance proves our predictions are statistically conservative and calibrated.
+              </div>
+            </div>
+
+            <!-- Right: Calibration Chart -->
+            <div style="background:var(--card);border:1px solid var(--bd);box-shadow:0 4px 16px var(--sh);border-radius:18px;padding:20px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <h4 style="margin:0;font-size:14px;font-weight:700;color:var(--fg);">Calibration Curve (Predicted vs Actual Risk)</h4>
+                <span style="font-size:11.5px;color:var(--sec);font-weight:600;">Ideal = 45° Dashed Line</span>
+              </div>
+              ${calChartSvg}
+            </div>
+          </div>
+        </section>
+      `);
+
+      // Wire interactive events
+      wirePromisesEvents();
+    }
+
+    function wirePromisesEvents() {
+      let recalcTimer = null;
+      const queueRecalc = (delay = 250) => {
+        clearTimeout(recalcTimer);
+        recalcTimer = setTimeout(() => {
+          loadAndRender();
+        }, delay);
+      };
+
+      // Balance input
+      const balInput = $('#ctrlBalanceInput');
+      if (balInput) {
+        balInput.oninput = () => {
+          userBalanceOverride = parseFloat(balInput.value) || 0;
+          queueRecalc(450);
+        };
+        balInput.onchange = () => {
+          userBalanceOverride = parseFloat(balInput.value) || 0;
+          queueRecalc(0);
+        };
+        balInput.onkeydown = e => {
+          if (e.key === 'Enter') {
+            userBalanceOverride = parseFloat(balInput.value) || 0;
+            queueRecalc(0);
+          }
+        };
+      }
+
+      // Reset Balance to Auto
+      const btnReset = $('#btnResetBalance');
+      if (btnReset) {
+        btnReset.onclick = () => {
+          userBalanceOverride = null;
+          loadAndRender();
+        };
+      }
+
+      // Buffer slider
+      const bufSlider = $('#ctrlBufferSlider');
+      const bufDisplay = $('#ctrlBufferDisplay');
+      if (bufSlider && bufDisplay) {
+        bufSlider.oninput = () => {
+          currentBuffer = parseFloat(bufSlider.value);
+          bufDisplay.textContent = inr(currentBuffer);
+          queueRecalc(200);
+        };
+        bufSlider.onchange = () => {
+          currentBuffer = parseFloat(bufSlider.value);
+          bufDisplay.textContent = inr(currentBuffer);
+          queueRecalc(0);
+        };
+      }
+
+      // Shock timing buttons
+      const btnTomorrow = $('#btnShockTomorrow');
+      const btnMid = $('#btnShockMid');
+      if (btnTomorrow && btnMid) {
+        btnTomorrow.onclick = () => {
+          currentShockDay = 1;
+          loadAndRender();
+        };
+        btnMid.onclick = () => {
+          currentShockDay = 15;
+          loadAndRender();
+        };
+      }
+
+      // Recalculate button
+      const btnRecalc = $('#btnRecalcPromises');
+      if (btnRecalc) {
+        btnRecalc.onclick = () => {
+          if (balInput) userBalanceOverride = parseFloat(balInput.value) || 0;
+          if (bufSlider) currentBuffer = parseFloat(bufSlider.value) || 5000;
+          loadAndRender();
+        };
+      }
+
+      // Bill simulation inputs
+      const billNameIn = $('#billNameInput');
+      const billAmtSl = $('#billAmtSlider');
+      const billAmtDisp = $('#billAmtDisplay');
+      const billDaySl = $('#billDaySlider');
+      const billDayDisp = $('#billDayDisplay');
+      const billInfSl = $('#billInflowSlider');
+      const billInfDisp = $('#billInflowDisplay');
+      const btnUpdateBill = $('#btnUpdateBillSim');
+
+      if (billNameIn) {
+        billNameIn.onchange = () => {
+          currentBillName = billNameIn.value.trim() || 'Upcoming Bill';
+          queueRecalc(0);
+        };
+      }
+
+      if (billAmtSl && billAmtDisp) {
+        billAmtSl.oninput = () => {
+          currentBillAmount = parseFloat(billAmtSl.value);
+          billAmtDisp.textContent = inr(currentBillAmount);
+          queueRecalc(200);
+        };
+        billAmtSl.onchange = () => {
+          currentBillAmount = parseFloat(billAmtSl.value);
+          billAmtDisp.textContent = inr(currentBillAmount);
+          queueRecalc(0);
+        };
+      }
+
+      if (billDaySl && billDayDisp) {
+        billDaySl.oninput = () => {
+          currentBillDueDay = parseInt(billDaySl.value, 10);
+          billDayDisp.textContent = `Day ${currentBillDueDay}`;
+          queueRecalc(200);
+        };
+        billDaySl.onchange = () => {
+          currentBillDueDay = parseInt(billDaySl.value, 10);
+          billDayDisp.textContent = `Day ${currentBillDueDay}`;
+          queueRecalc(0);
+        };
+      }
+
+      if (billInfSl && billInfDisp) {
+        billInfSl.oninput = () => {
+          currentExpectedInflow = parseFloat(billInfSl.value);
+          billInfDisp.textContent = `${inr(currentExpectedInflow)} (75% prob)`;
+          queueRecalc(200);
+        };
+        billInfSl.onchange = () => {
+          currentExpectedInflow = parseFloat(billInfSl.value);
+          billInfDisp.textContent = `${inr(currentExpectedInflow)} (75% prob)`;
+          queueRecalc(0);
+        };
+      }
+
+      if (btnUpdateBill) {
+        btnUpdateBill.onclick = () => {
+          if (billNameIn && billNameIn.value.trim()) {
+            currentBillName = billNameIn.value.trim();
+          }
+          if (billAmtSl) currentBillAmount = parseFloat(billAmtSl.value);
+          if (billDaySl) currentBillDueDay = parseInt(billDaySl.value, 10);
+          if (billInfSl) currentExpectedInflow = parseFloat(billInfSl.value);
+          loadAndRender();
+        };
+      }
+    }
+
+    await loadAndRender();
   }
 };
 

@@ -18,7 +18,7 @@ DB_FILE_PATH = BACKEND_DIR / "finops.db"
 DB_URI_PATH = DB_FILE_PATH.as_posix()
 
 class Settings:
-    PROJECT_NAME: str = "ClaireFinance API"
+    PROJECT_NAME: str = "Clairfinance API"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api"
     

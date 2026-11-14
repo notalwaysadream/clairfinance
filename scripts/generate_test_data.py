@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test Data Generator for ClairFinance
+Test Data Generator for Clairfinance
 Generates realistic 12-month transaction histories for 3 Indian personas:
 1. Salaried Employee
 2. Freelancer

@@ -2,12 +2,12 @@
 setlocal enabledelayedexpansion
 
 REM ================================================================
-REM ClaireFinance Windows Startup Script
+REM Clairfinance Windows Startup Script
 REM Boots both FastAPI backend (port 8000) and Frontend (port 3000),
 REM seeds datasets, installs requirements, and opens the browser.
 REM ================================================================
 
-title ClaireFinance Runner
+title Clairfinance Runner
 
 set "ROOT_DIR=%~dp0"
 set "BACKEND_DIR=%ROOT_DIR%backend"
@@ -16,7 +16,7 @@ set "VENV_DIR=%BACKEND_DIR%\venv"
 set "DATA_DIR=%ROOT_DIR%data"
 
 echo ==================================================
-echo 🏦 Launching ClaireFinance Operating System (Windows)
+echo 🏦 Launching Clairfinance Operating System (Windows)
 echo Root directory: %ROOT_DIR%
 echo ==================================================
 
@@ -108,11 +108,11 @@ for /f "tokens=5" %%a in ('netstat -aon ^| findstr :3000') do (
 
 REM 8. Start FastAPI Backend (Port 8000)
 echo 🚀 Starting FastAPI Backend on http://localhost:8000...
-start "ClaireFinance Backend (Port 8000)" cmd /k "cd /d "%BACKEND_DIR%" && set PYTHONPATH=%BACKEND_DIR% && "%VENV_DIR%\Scripts\python.exe" -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
+start "Clairfinance Backend (Port 8000)" cmd /k "cd /d "%BACKEND_DIR%" && set PYTHONPATH=%BACKEND_DIR% && "%VENV_DIR%\Scripts\python.exe" -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
 REM 9. Start Frontend Web Server (Port 3000)
 echo 🎨 Starting Frontend Server on http://localhost:3000...
-start "ClaireFinance Frontend (Port 3000)" cmd /k "cd /d "%ROOT_DIR%" && "%VENV_DIR%\Scripts\python.exe" "%ROOT_DIR%scripts\serve_frontend.py" 3000 "%FRONTEND_DIR%""
+start "Clairfinance Frontend (Port 3000)" cmd /k "cd /d "%ROOT_DIR%" && "%VENV_DIR%\Scripts\python.exe" "%ROOT_DIR%scripts\serve_frontend.py" 3000 "%FRONTEND_DIR%""
 
 REM 10. Wait for Backend to become healthy before opening browser
 echo ⏳ Waiting for backend health check...
@@ -124,7 +124,7 @@ echo 🌐 Opening web browser at %TARGET_URL%...
 start %TARGET_URL%
 
 echo ==================================================
-echo ✨ ClaireFinance is LIVE!
+echo ✨ Clairfinance is LIVE!
 echo ==================================================
 echo 💻 Frontend App:     http://localhost:3000
 echo ⚙️ Backend API:      http://localhost:8000
@@ -142,13 +142,13 @@ echo ==================================================
 
 pause >nul
 
-echo 🛑 Stopping ClaireFinance services...
-taskkill /FI "WINDOWTITLE eq ClaireFinance Backend (Port 8000)*" /F >nul 2>&1
-taskkill /FI "WINDOWTITLE eq ClaireFinance Frontend (Port 3000)*" /F >nul 2>&1
+echo 🛑 Stopping Clairfinance services...
+taskkill /FI "WINDOWTITLE eq Clairfinance Backend (Port 8000)*" /F >nul 2>&1
+taskkill /FI "WINDOWTITLE eq Clairfinance Frontend (Port 3000)*" /F >nul 2>&1
 
 REM Also free up ports 8000 and 3000 if still held
 for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr :8000') do taskkill /F /PID %%a >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr :3000') do taskkill /F /PID %%a >nul 2>&1
 
-echo ✅ ClaireFinance stopped cleanly. Goodbye!
+echo ✅ Clairfinance stopped cleanly. Goodbye!
 exit /b 0

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ClairFinance Backend Health Waiter
+Clairfinance Backend Health Waiter
 Pings the backend health endpoint until it responds 200 OK or times out.
 """
 import sys
@@ -12,7 +12,7 @@ def wait_for_backend(url="http://127.0.0.1:8000/api/health", max_seconds=30):
     start_time = time.time()
     while time.time() - start_time < max_seconds:
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": "ClairFinance-HealthCheck"})
+            req = urllib.request.Request(url, headers={"User-Agent": "Clairfinance-HealthCheck"})
             with urllib.request.urlopen(req, timeout=1.5) as resp:
                 if resp.status == 200:
                     print(" ✅ Ready!")
@@ -23,7 +23,7 @@ def wait_for_backend(url="http://127.0.0.1:8000/api/health", max_seconds=30):
         time.sleep(0.5)
 
     print("\n⚠️ Warning: Backend health check timed out after 30 seconds.")
-    print("Please check the 'ClairFinance Backend' console window for logs.")
+    print("Please check the 'Clairfinance Backend' console window for logs.")
     return 1
 
 if __name__ == "__main__":
