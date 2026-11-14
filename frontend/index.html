@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clairfinance — AI Personal Financial Operating System</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='22' fill='%230a0a0f'/><g transform='translate(9.6 16) scale(.8)'><path d='M6 40Q48-6 90 40Q48 86 6 40Z' fill='none' stroke='%23f0f0f5' stroke-width='6' stroke-linejoin='round'/><circle cx='48' cy='40' r='19' fill='%23f0f0f5'/><polyline points='37,48 44,42 50,45 59,33' fill='none' stroke='%230a0a0f' stroke-width='5' stroke-linecap='round'/><circle cx='59' cy='33' r='4.5' fill='%2322d3ee'/></g></svg>">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+<script>document.documentElement.dataset.theme=localStorage.getItem('cf-theme')||'dark'</script>
+</head>
+<body data-view="login">
+<svg width="0" height="0" style="position:absolute"><symbol id="logo" viewBox="0 0 96 80"><path d="M6 40Q48-6 90 40Q48 86 6 40Z" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/><circle cx="48" cy="40" r="19" fill="currentColor"/><polyline class="ll" points="37,48 44,42 50,45 59,33" fill="none" stroke="var(--bg)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="59" cy="33" r="3.8" fill="var(--sec)"/></symbol></svg>
+
+<section class="login">
+  <div class="orbs"><i></i><i></i><i></i></div>
+  <div class="brandside">
+    <svg class="lm"><use href="#logo"/></svg>
+    <div class="wm">Clair<span>finance</span></div>
+    <p>Know if you’ll run out of money, and when, before it happens. AI-driven cash flow forecasting, anomaly detection & affordability checks.</p>
+    <div class="floaters"><b>Cash Flow Forecasts</b><b>What-If Simulator</b><b>Anomaly Detection</b><b>Bill Reminders</b></div>
+  </div>
+  <form class="glass formside" id="loginForm">
+    <h2>Welcome back</h2><p class="sub">Log in or select a demo persona to explore.</p>
+    <label class="fld"><input type="email" id="loginEmail" placeholder=" " value="demo.rahul@clairfinance.com" required><span>Email</span></label>
+    <label class="fld"><input type="password" id="pw" placeholder=" " value="password123" required><span>Password</span><button type="button" class="eye" id="pwt" aria-label="Show password" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path class="sl" d="M3 3l18 18"/></svg></button></label>
+    <button class="btn" type="submit">Log in to Dashboard</button>
+    
+    <div class="or">or quick-switch persona</div>
+    <div class="p-login-grid">
+      <button type="button" class="btn ghost p-quick-btn" data-persona="salaried">👨‍💼 Salaried</button>
+      <button type="button" class="btn ghost p-quick-btn" data-persona="freelancer">👩‍💻 Freelancer</button>
+      <button type="button" class="btn ghost p-quick-btn" data-persona="student">🎓 Student</button>
+    </div>
+
+    <div class="or">or</div>
+    <button class="btn ghost" type="button" id="gbtn">Continue with Google / Dev Mode</button>
+  </form>
+</section>
+
+<section class="upload">
+  <div class="orbs"><i></i><i></i><i></i></div>
+  <div class="glass upcard">
+    <div class="wm uw"><svg><use href="#logo"/></svg>Clair<span>finance</span></div>
+    <h2>Upload bank statement CSV</h2>
+    <p class="sub">Upload transaction exports (HDFC, ICICI, SBI, Axis, or generic CSV). Clairfinance will parse dates, auto-categorize, and detect spending patterns.</p>
+    <label class="drop" id="drop">
+      <svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>
+      <b id="dt">Drag and drop your CSV here</b>
+      <span class="cat" id="ds">or click to browse. Needs Date, Description, and Amount columns.</span>
+      <input type="file" id="csv" accept=".csv,text/csv" hidden>
+    </label>
+    <div class="prog" id="pg" hidden><i></i></div>
+    <p class="cat" id="pt" hidden></p>
+    <button class="btn" id="cont" disabled>Upload and Analyze Statement</button>
+    <div style="display:flex;justify-content:space-between;width:100%;flex-wrap:wrap;gap:10px;">
+      <button class="lk" id="smp" type="button">Download sample CSV</button>
+      <button class="lk" id="demo" type="button">Load pre-seeded 12-month data</button>
+    </div>
+  </div>
+</section>
+
+<div class="app">
+  <aside class="side glass">
+    <a class="sb-brand" href="#/home"><svg><use href="#logo"/></svg><span class="wm">Clair<span>finance</span></span></a>
+    
+    <div class="active-persona-widget">
+      <div class="ap-header">
+        <span class="ap-avatar" id="side-p-avatar">👨‍💼</span>
+        <div class="ap-info">
+          <b id="side-p-name">Rahul Sharma</b>
+          <span class="ap-role" id="side-p-role">Salaried Employee</span>
+        </div>
+      </div>
+      <div class="ap-buttons">
+        <button class="ap-btn on" data-p="salaried" title="Salaried: Fixed salary, car loan EMI, regular bills">Salaried</button>
+        <button class="ap-btn" data-p="freelancer" title="Freelancer: Irregular client payments, subscriptions">Freelance</button>
+        <button class="ap-btn" data-p="student" title="Student: Tight allowance, mess, semester fee spikes">Student</button>
+      </div>
+    </div>
+
+    <nav id="nav"></nav>
+    <div class="sb-foot">
+      <button class="theme" id="theme" aria-label="Toggle light and dark mode">
+        <span class="track">
+          <svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>
+          <svg class="moon" viewBox="0 0 24 24"><path d="M20 14A8 8 0 0 1 10 4a8 8 0 1 0 10 10Z"/></svg>
+          <i class="knob"></i>
+        </span>
+        <span class="tl">Dark mode</span>
+      </button>
+      <a class="nav-i" href="#/upload"><svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg><span>Upload new CSV</span></a>
+      <button class="nav-i out" id="out"><svg viewBox="0 0 24 24"><path d="M9 4H5v16h4M16 8l4 4-4 4M20 12H9"/></svg><span>Sign out</span></button>
+    </div>
+  </aside>
+  
+  <div class="main-content-area">
+    <header class="app-topbar glass">
+      <div class="topbar-status">
+        <span class="live-dot" id="live-dot"></span>
+        <span id="api-status-label">Backend Connected (http://localhost:8000)</span>
+      </div>
+      <div class="topbar-actions">
+        <span class="badge persona-pill" id="topbar-persona-pill">Salaried · Rahul Sharma</span>
+      </div>
+    </header>
+    <main id="main"></main>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

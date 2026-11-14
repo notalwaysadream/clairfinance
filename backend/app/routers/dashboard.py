@@ -807,11 +807,19 @@ async def get_calendar_heatmap(
         if d not in top_cat_by_date:
             top_cat_by_date[d] = cname
 
+    min_date = rows[0][0]
+    max_date = rows[-1][0]
+    # Build continuous day sequence for up to 60 days
+    start_window = max(min_date, max_date - timedelta(days=59))
+    spend_map = {r[0]: (float(r[1] or 0.0), r[2]) for r in rows}
+
     total_spent = 0.0
     day_points = []
-    for d, d_total, d_cnt in rows:
-        amt = float(d_total or 0.0)
+    curr = start_window
+    while curr <= max_date:
+        amt, d_cnt = spend_map.get(curr, (0.0, 0))
         total_spent += amt
+
         # Intensity: 0=none, 1=<500, 2=500-2000, 3=2000-5000, 4=>5000
         if amt <= 0:
             intensity = 0
@@ -825,12 +833,15 @@ async def get_calendar_heatmap(
             intensity = 4
 
         day_points.append(CalendarDayPoint(
-            date=d.strftime("%Y-%m-%d"),
+            date=curr.strftime("%Y-%m-%d"),
             total_amount=round(amt, 2),
+            total_spend=round(amt, 2),
             transaction_count=d_cnt,
             intensity=intensity,
-            top_category=top_cat_by_date.get(d, "General")
+            top_category=top_cat_by_date.get(curr, "No Spending" if amt == 0 else "General"),
+            day_number=curr.day
         ))
+        curr += timedelta(days=1)
 
     return CalendarHeatmapResponse(
         start_date=day_points[0].date if day_points else "",

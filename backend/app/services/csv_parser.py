@@ -1,4 +1,3 @@
-import csv
 import io
 import re
 from datetime import datetime, date
@@ -6,64 +5,187 @@ from typing import List, Dict, Any, Tuple, Optional
 import pandas as pd
 
 COLUMN_ALIASES = {
-    "date": ["date", "transaction date", "txn date", "value date", "trans date", "booking date"],
-    "description": ["description", "narration", "particulars", "remarks", "details", "transaction remarks", "merchant"],
-    "amount": ["amount", "transaction amount", "txn amount", "net amount"],
-    "debit": ["debit", "withdrawal", "dr", "debit amount", "withdrawals"],
-    "credit": ["credit", "deposit", "cr", "credit amount", "deposits"],
-    "type": ["type", "dr/cr", "transaction type", "cr/dr", "txn type"],
-    "mode": ["mode", "payment mode", "channel", "method", "txn mode"],
+    "date": [
+        "date", "transaction date", "txn date", "value date", "trans date",
+        "booking date", "trans date trans time", "trans_date_trans_time",
+        "trans_date", "trans_time", "transaction_date", "timestamp", "datetime",
+        "post date", "posted date", "time", "trans datetime", "unix_time", "trans date time"
+    ],
+    "description": [
+        "description", "narration", "particulars", "remarks", "details",
+        "transaction remarks", "merchant", "merchant_name", "merchant name",
+        "payee", "name", "desc", "title", "item", "trans_num", "counterparty",
+        "memo", "notes", "transaction details", "trans details", "first"
+    ],
+    "amount": [
+        "amount", "transaction amount", "txn amount", "net amount",
+        "amt", "spent", "cost", "price", "total", "value", "sum",
+        "charge", "payment", "amount (inr)", "amount ($)", "amount (usd)", "amount (eur)"
+    ],
+    "debit": [
+        "debit", "withdrawal", "dr", "debit amount", "withdrawals",
+        "outflow", "paid out", "dr amount", "debit inr", "withdrawal amt", "withdrawal amt."
+    ],
+    "credit": [
+        "credit", "deposit", "cr", "credit amount", "deposits",
+        "inflow", "paid in", "cr amount", "credit inr", "deposit amt", "deposit amt."
+    ],
+    "type": [
+        "type", "dr/cr", "transaction type", "cr/dr", "txn type",
+        "direction", "entry type"
+    ],
+    "mode": [
+        "mode", "payment mode", "channel", "method", "txn mode",
+        "payment_type", "payment method"
+    ],
+    "category": [
+        "category", "trans category", "txn category", "expense type", "tag", "label"
+    ],
 }
 
 DATE_FORMATS = [
     "%Y-%m-%d",
     "%d/%m/%Y",
+    "%m/%d/%Y",
     "%d-%m-%Y",
+    "%m-%d-%Y",
     "%d/%m/%y",
+    "%m/%d/%y",
     "%d-%m-%y",
+    "%m-%d-%y",
     "%Y/%m/%d",
     "%d %b %Y",
     "%d %B %Y",
     "%b %d, %Y",
+    "%B %d, %Y",
+    "%Y%m%d",
 ]
 
-def parse_date_robust(date_str: str) -> Optional[date]:
-    clean_str = str(date_str).strip()
-    # Strip any time component
-    clean_str = re.split(r"[T\s]", clean_str)[0]
-    
+DATETIME_FORMATS = [
+    "%Y-%m-%d %H:%M:%S",
+    "%m/%d/%Y %H:%M:%S",
+    "%d/%m/%Y %H:%M:%S",
+    "%Y-%m-%d %H:%M",
+    "%m/%d/%Y %H:%M",
+    "%d/%m/%Y %H:%M",
+    "%Y/%m/%d %H:%M:%S",
+    "%d-%m-%Y %H:%M:%S",
+]
+
+def parse_date_robust(date_val: Any) -> Optional[date]:
+    if date_val is None or pd.isna(date_val):
+        return None
+
+    clean_str = str(date_val).strip().strip('"').strip("'")
+    if not clean_str or clean_str.lower() in ("nan", "nat", "none", "null"):
+        return None
+
+    # Check for unix timestamp (e.g. 1371816865 or 1371816865000)
+    if clean_str.isdigit() and len(clean_str) in (10, 13):
+        try:
+            ts_val = float(clean_str)
+            if len(clean_str) == 13:
+                ts_val /= 1000.0
+            return datetime.fromtimestamp(ts_val).date()
+        except Exception:
+            pass
+
+    # Extract date part if time is separated by T or whitespace
+    date_part = re.split(r"[T\s]", clean_str)[0]
+
     for fmt in DATE_FORMATS:
+        try:
+            return datetime.strptime(date_part, fmt).date()
+        except ValueError:
+            continue
+
+    # Try full datetime string
+    for fmt in DATETIME_FORMATS:
         try:
             return datetime.strptime(clean_str, fmt).date()
         except ValueError:
             continue
-            
-    # Try pandas parser as fallback
+
+    # Fallback using pandas parser
     try:
-        ts = pd.to_datetime(date_str, dayfirst=True)
-        return ts.date()
+        ts = pd.to_datetime(clean_str, errors="coerce")
+        if not pd.isna(ts):
+            return ts.date()
     except Exception:
-        return None
+        pass
+
+    try:
+        ts = pd.to_datetime(clean_str, dayfirst=True, errors="coerce")
+        if not pd.isna(ts):
+            return ts.date()
+    except Exception:
+        pass
+
+    return None
 
 def clean_amount(val: Any) -> float:
     if val is None or pd.isna(val):
         return 0.0
-    val_str = str(val).strip().replace(",", "").replace("₹", "").replace("$", "")
+
+    val_str = str(val).strip()
+    # Strip currency signs, quotes, and symbols
+    val_str = re.sub(r"[₹\$,€£\s]", "", val_str)
+    # Handle negative amounts in accounting format: (123.45) -> -123.45
+    if val_str.startswith("(") and val_str.endswith(")"):
+        val_str = "-" + val_str[1:-1]
+    val_str = val_str.replace(",", "")
+
     try:
         return abs(float(val_str))
     except ValueError:
         return 0.0
 
 def detect_column_mapping(columns: List[str]) -> Dict[str, str]:
-    mapping = {}
-    normalized_cols = {col: re.sub(r"[_\s]+", " ", col.strip().lower()) for col in columns}
-    
+    mapping: Dict[str, str] = {}
+    normalized_cols = {col: re.sub(r"[_\s]+", " ", str(col).strip().lower()) for col in columns}
+
+    # Direct alias match
     for standard_name, aliases in COLUMN_ALIASES.items():
         for orig_col, norm_col in normalized_cols.items():
             if norm_col in aliases:
                 mapping[standard_name] = orig_col
                 break
-                
+
+    # Fallback substring matching for date
+    if "date" not in mapping:
+        for orig_col, norm_col in normalized_cols.items():
+            if "date" in norm_col or "time" in norm_col or "timestamp" in norm_col:
+                mapping["date"] = orig_col
+                break
+
+    # Fallback substring matching for amount
+    if "amount" not in mapping and "debit" not in mapping:
+        for orig_col, norm_col in normalized_cols.items():
+            if any(w in norm_col for w in ["amt", "amount", "spent", "cost", "total", "price", "val", "charge", "payment"]):
+                mapping["amount"] = orig_col
+                break
+
+    # Fallback substring matching for description
+    if "description" not in mapping:
+        for orig_col, norm_col in normalized_cols.items():
+            if any(w in norm_col for w in ["desc", "merchant", "narrat", "partic", "payee", "detail", "item", "remark", "notes"]):
+                mapping["description"] = orig_col
+                break
+        if "description" not in mapping:
+            # Pick first string-like column that isn't date or amount
+            for orig_col, norm_col in normalized_cols.items():
+                if orig_col not in mapping.values():
+                    mapping["description"] = orig_col
+                    break
+
+    # Fallback for category
+    if "category" not in mapping:
+        for orig_col, norm_col in normalized_cols.items():
+            if "cat" in norm_col or "tag" in norm_col or "type" in norm_col:
+                if orig_col not in mapping.values():
+                    mapping["category"] = orig_col
+                    break
+
     return mapping
 
 def detect_payment_mode(description: str) -> str:
@@ -87,11 +209,11 @@ def detect_payment_mode(description: str) -> str:
 def parse_csv_content(content_bytes: bytes) -> Tuple[List[Dict[str, Any]], List[str]]:
     """
     Parses CSV content bytes into structured transaction dictionaries.
-    Handles various Indian bank formats (HDFC, SBI, ICICI, etc.)
+    Supports Kaggle datasets, bank statements (HDFC, SBI, ICICI, etc.), and custom CSV exports.
     """
-    errors = []
-    transactions = []
-    
+    errors: List[str] = []
+    transactions: List[Dict[str, Any]] = []
+
     # Try multiple decodings
     text = None
     for encoding in ["utf-8-sig", "utf-8", "latin1", "cp1252"]:
@@ -100,7 +222,7 @@ def parse_csv_content(content_bytes: bytes) -> Tuple[List[Dict[str, Any]], List[
             break
         except UnicodeDecodeError:
             continue
-            
+
     if not text:
         return [], ["Failed to decode file. Supported encodings: UTF-8, Latin-1."]
 
@@ -108,51 +230,58 @@ def parse_csv_content(content_bytes: bytes) -> Tuple[List[Dict[str, Any]], List[
     if not lines:
         return [], ["The uploaded CSV file is empty."]
 
-    # Find the header row (skip preamble metadata lines)
+    # Find the header row (skip preamble metadata lines if present)
     header_idx = -1
-    for idx, line in enumerate(lines[:15]):
+    for idx, line in enumerate(lines[:25]):
         line_lower = line.lower()
-        if ("date" in line_lower and ("description" in line_lower or "narration" in line_lower or "particulars" in line_lower or "amount" in line_lower)):
+        has_date = any(w in line_lower for w in ["date", "time", "timestamp"])
+        has_other = any(w in line_lower for w in [
+            "amt", "amount", "spent", "desc", "narration", "particular",
+            "merchant", "payee", "debit", "credit", "cost", "total", "category"
+        ])
+        if has_date and has_other:
             header_idx = idx
             break
 
     if header_idx == -1:
-        # Default to first non-empty line
         header_idx = 0
 
     csv_data = "\n".join(lines[header_idx:])
-    
+
     try:
-        df = pd.read_csv(io.StringIO(csv_data))
-    except Exception as e:
-        return [], [f"Failed to parse CSV format: {str(e)}"]
+        df = pd.read_csv(io.StringIO(csv_data), sep=None, engine="python")
+    except Exception:
+        try:
+            df = pd.read_csv(io.StringIO(csv_data))
+        except Exception as e:
+            return [], [f"Failed to parse CSV format: {str(e)}"]
 
     col_map = detect_column_mapping(df.columns.tolist())
-    
+
     # Verify mandatory fields
     if "date" not in col_map:
-        return [], ["Required column 'Date' (or 'Txn Date') was not found in the CSV."]
+        return [], [f"Required column 'Date' was not found in CSV headers: {list(df.columns)}"]
     if "description" not in col_map:
-        return [], ["Required column 'Description' (or 'Narration'/'Particulars') was not found in the CSV."]
-        
+        return [], [f"Required column 'Description'/'Merchant' was not found in CSV headers: {list(df.columns)}"]
+
     has_amount = "amount" in col_map
     has_debit_credit = "debit" in col_map or "credit" in col_map
-    
+
     if not has_amount and not has_debit_credit:
-        return [], ["Could not identify amount columns ('Amount' or 'Debit'/'Credit')."]
+        return [], [f"Could not identify amount columns ('Amount'/'Amt' or 'Debit'/'Credit') in headers: {list(df.columns)}"]
 
     for row_idx, row in df.iterrows():
         try:
             raw_date = row[col_map["date"]]
             if pd.isna(raw_date):
                 continue
-            parsed_date = parse_date_robust(str(raw_date))
+            parsed_date = parse_date_robust(raw_date)
             if not parsed_date:
                 errors.append(f"Row {row_idx + 1}: Invalid date '{raw_date}'")
                 continue
 
             raw_desc = str(row[col_map["description"]]).strip()
-            if not raw_desc or raw_desc.lower() == "nan":
+            if not raw_desc or raw_desc.lower() in ("nan", "none", "null"):
                 continue
 
             txn_type = "debit"
@@ -161,7 +290,7 @@ def parse_csv_content(content_bytes: bytes) -> Tuple[List[Dict[str, Any]], List[
             if has_debit_credit:
                 debit_val = clean_amount(row.get(col_map.get("debit"))) if "debit" in col_map else 0.0
                 credit_val = clean_amount(row.get(col_map.get("credit"))) if "credit" in col_map else 0.0
-                
+
                 if credit_val > 0 and debit_val == 0:
                     txn_type = "credit"
                     amount = credit_val
@@ -173,12 +302,11 @@ def parse_csv_content(content_bytes: bytes) -> Tuple[List[Dict[str, Any]], List[
                     amount = clean_amount(raw_amt)
                     if "type" in col_map:
                         t_str = str(row[col_map["type"]]).strip().lower()
-                        txn_type = "credit" if "cr" in t_str or "credit" in t_str else "debit"
+                        txn_type = "credit" if "cr" in t_str or "credit" in t_str or "inflow" in t_str else "debit"
             else:
                 raw_amt = row[col_map["amount"]]
                 if pd.isna(raw_amt):
                     continue
-                # Handle negative amounts
                 amt_str = str(raw_amt).strip()
                 if amt_str.startswith("-") or "(" in amt_str:
                     txn_type = "debit"
@@ -187,11 +315,10 @@ def parse_csv_content(content_bytes: bytes) -> Tuple[List[Dict[str, Any]], List[
                     amount = clean_amount(amt_str)
                     if "type" in col_map:
                         t_str = str(row[col_map["type"]]).strip().lower()
-                        txn_type = "credit" if ("cr" in t_str or "credit" in t_str) else "debit"
+                        txn_type = "credit" if ("cr" in t_str or "credit" in t_str or "inflow" in t_str or "deposit" in t_str) else "debit"
                     else:
-                        # Default heuristics: if salary/credit keywords
                         desc_up = raw_desc.upper()
-                        if any(w in desc_up for w in ["SALARY", "CREDIT", "REFUND", "CASHBACK", "DIVIDEND"]):
+                        if any(w in desc_up for w in ["SALARY", "CREDIT", "REFUND", "CASHBACK", "DIVIDEND", "PAYROLL", "INCOME"]):
                             txn_type = "credit"
                         else:
                             txn_type = "debit"
@@ -205,6 +332,10 @@ def parse_csv_content(content_bytes: bytes) -> Tuple[List[Dict[str, Any]], List[
             else:
                 payment_mode = detect_payment_mode(raw_desc)
 
+            raw_cat = None
+            if "category" in col_map and not pd.isna(row[col_map["category"]]):
+                raw_cat = str(row[col_map["category"]]).strip()
+
             transactions.append({
                 "date": parsed_date,
                 "description": raw_desc,
@@ -212,6 +343,7 @@ def parse_csv_content(content_bytes: bytes) -> Tuple[List[Dict[str, Any]], List[
                 "type": txn_type,
                 "payment_mode": payment_mode,
                 "raw_description": raw_desc,
+                "raw_category": raw_cat,
             })
         except Exception as ex:
             errors.append(f"Row {row_idx + 1}: {str(ex)}")

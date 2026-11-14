@@ -3,7 +3,7 @@ from datetime import date, datetime
 from typing import Optional, List
 from fastapi import APIRouter, Depends, UploadFile, File, Query, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_, desc
+from sqlalchemy import select, func, and_, or_, desc, delete
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
@@ -18,7 +18,12 @@ from app.schemas.transaction import (
     TransactionUpdate,
     CSVUploadResponse,
 )
-from app.utils.helpers import get_current_user
+from app.utils.helpers import (
+    get_current_user,
+    get_or_create_persona_user,
+    set_active_persona_id,
+    create_access_token,
+)
 from app.services.csv_parser import parse_csv_content
 from app.services.categorizer import categorizer
 from app.services.anomaly_detector import detect_anomalies
@@ -46,16 +51,21 @@ async def upload_transactions_csv(
     raw_txns, parse_errors = parse_csv_content(content)
 
     if not raw_txns:
-        return CSVUploadResponse(
-            message="No valid transactions could be parsed from the CSV.",
-            total_parsed=0,
-            total_saved=0,
-            batch_id="",
-            auto_categorized_count=0,
-            anomalies_detected=0,
-            recurring_detected=0,
-            errors=parse_errors
+        err_msg = "; ".join(parse_errors[:3]) if parse_errors else "Please verify that the CSV has columns for Date, Description/Merchant, and Amount/Amt."
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Could not parse valid transactions from the uploaded CSV: {err_msg}"
         )
+
+    # Use the isolated Custom user so uploaded statements do not mix with pre-seeded demo personas
+    custom_user = await get_or_create_persona_user(db, "custom")
+    target_user_id = custom_user.id
+    set_active_persona_id("custom")
+
+    # Clear previous transactions, alerts, and recurring patterns for the custom statement
+    await db.execute(delete(Alert).where(Alert.user_id == target_user_id))
+    await db.execute(delete(RecurringPattern).where(RecurringPattern.user_id == target_user_id))
+    await db.execute(delete(Transaction).where(Transaction.user_id == target_user_id))
 
     # Fetch all categories from DB for ID resolution
     cat_stmt = select(Category)
@@ -78,21 +88,21 @@ async def upload_transactions_csv(
             txn["category_id"] = None
             txn["category_name"] = "Miscellaneous"
 
-    # Step 2: Anomaly Detection
-    raw_txns = detect_anomalies(raw_txns)
-    anomalies_detected = sum(1 for t in raw_txns if t.get("anomaly_score", 0.0) > 0.0)
-
-    # Step 3: Recurring Pattern Detection
+    # Step 2: Recurring Pattern Detection (Runs BEFORE Anomaly Detection so recurring payments are marked)
     raw_txns, recurring_patterns = detect_recurring_patterns(raw_txns)
     recurring_detected = sum(1 for t in raw_txns if t.get("is_recurring", False))
 
+    # Step 3: Anomaly Detection (Recurring payments like house rent / EMIs are assigned score 0.0)
+    raw_txns = detect_anomalies(raw_txns)
+    anomalies_detected = sum(1 for t in raw_txns if t.get("anomaly_score", 0.0) > 0.0)
+
     batch_id = str(uuid.uuid4())[:8]
 
-    # Step 4: Persist to DB
+    # Step 4: Persist to DB under target_user_id
     db_txns = []
     for item in raw_txns:
         txn_obj = Transaction(
-            user_id=current_user.id,
+            user_id=target_user_id,
             date=item["date"],
             description=item["description"],
             amount=item["amount"],
@@ -108,11 +118,11 @@ async def upload_transactions_csv(
 
     db.add_all(db_txns)
 
-    # Create alerts for high anomalies detected
+    # Create alerts for high anomalies detected (never for recurring transactions)
     for txn in raw_txns:
-        if txn.get("anomaly_score", 0.0) >= 0.7:
+        if txn.get("anomaly_score", 0.0) >= 0.7 and not txn.get("is_recurring", False):
             alert = Alert(
-                user_id=current_user.id,
+                user_id=target_user_id,
                 alert_type="anomaly",
                 title=f"Unusual Spend: ₹{txn['amount']:,.0f} on {txn['category_name']}",
                 description=f"Transaction '{txn['description']}' was flagged as unusually high for category '{txn['category_name']}'.",
@@ -124,7 +134,7 @@ async def upload_transactions_csv(
     # Record recurring patterns
     for pat in recurring_patterns:
         rec_obj = RecurringPattern(
-            user_id=current_user.id,
+            user_id=target_user_id,
             description=pat["description"],
             category_id=pat.get("category_id"),
             typical_amount=pat["typical_amount"],
@@ -137,7 +147,7 @@ async def upload_transactions_csv(
 
         # Create alert for upcoming recurring payment
         alert = Alert(
-            user_id=current_user.id,
+            user_id=target_user_id,
             alert_type="recurring_payment",
             title=f"Upcoming {pat['frequency'].title()} Payment: ₹{pat['typical_amount']:,.0f}",
             description=f"Recurring charge expected for '{pat['description']}' around {pat['next_expected']}.",
@@ -148,6 +158,8 @@ async def upload_transactions_csv(
 
     await db.commit()
 
+    token = create_access_token({"sub": custom_user.email, "user_id": custom_user.id, "persona": "custom"})
+
     return CSVUploadResponse(
         message="CSV successfully parsed, categorized, and stored.",
         total_parsed=len(raw_txns),
@@ -156,13 +168,16 @@ async def upload_transactions_csv(
         auto_categorized_count=categorized_count,
         anomalies_detected=anomalies_detected,
         recurring_detected=recurring_detected,
+        access_token=token,
+        persona_id="custom",
         errors=parse_errors[:10]
     )
 
 @router.get("", response_model=TransactionListResponse)
 async def list_transactions(
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=200),
+    page_size: int = Query(100, ge=1, le=500),
+    limit: Optional[int] = None,
     category_id: Optional[str] = None,
     txn_type: Optional[str] = Query(None, alias="type"),
     start_date: Optional[date] = None,
@@ -174,11 +189,12 @@ async def list_transactions(
     """
     Returns paginated list of transactions with flexible search and filtering.
     """
+    actual_size = max(1, min(500, limit or page_size))
     filters = [Transaction.user_id == current_user.id]
 
     if category_id:
         filters.append(Transaction.category_id == category_id)
-    if txn_type:
+    if txn_type and isinstance(txn_type, str):
         filters.append(Transaction.type == txn_type.lower())
     if start_date:
         filters.append(Transaction.date >= start_date)
@@ -192,14 +208,14 @@ async def list_transactions(
     total_count = (await db.execute(count_stmt)).scalar() or 0
 
     # Query page
-    offset = (page - 1) * page_size
+    offset = (page - 1) * actual_size
     stmt = (
         select(Transaction)
         .options(selectinload(Transaction.category))
         .where(and_(*filters))
         .order_by(desc(Transaction.date), desc(Transaction.created_at))
         .offset(offset)
-        .limit(page_size)
+        .limit(actual_size)
     )
     res = await db.execute(stmt)
     records = res.scalars().all()
@@ -223,14 +239,15 @@ async def list_transactions(
             created_at=r.created_at
         ))
 
-    total_pages = (total_count + page_size - 1) // page_size if total_count > 0 else 1
+    total_pages = (total_count + actual_size - 1) // actual_size if total_count > 0 else 1
 
     return TransactionListResponse(
         total=total_count,
         page=page,
-        page_size=page_size,
+        page_size=actual_size,
         total_pages=total_pages,
-        transactions=txns_out
+        transactions=txns_out,
+        items=txns_out
     )
 
 @router.get("/summary", response_model=TransactionSummaryResponse)

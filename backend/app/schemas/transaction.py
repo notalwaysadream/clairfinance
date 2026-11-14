@@ -45,6 +45,7 @@ class TransactionListResponse(BaseModel):
     page_size: int
     total_pages: int
     transactions: List[TransactionOut]
+    items: Optional[List[TransactionOut]] = None
 
 class TransactionSummaryResponse(BaseModel):
     total_income: float
@@ -61,4 +62,6 @@ class CSVUploadResponse(BaseModel):
     auto_categorized_count: int
     anomalies_detected: int
     recurring_detected: int
+    access_token: Optional[str] = None
+    persona_id: Optional[str] = None
     errors: List[str] = []

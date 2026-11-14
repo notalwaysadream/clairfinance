@@ -120,6 +120,11 @@ def detect_anomalies(transactions: List[Dict[str, Any]]) -> List[Dict[str, Any]]
     # Combine Multi-Layered Anomaly Scores
     # -------------------------------------------------------------
     for idx, txn in enumerate(debit_txns):
+        # Condition: If it's a recurring payment (e.g. house rent, EMI, subscription), it is NOT an anomaly!
+        if txn.get("is_recurring", False):
+            txn["anomaly_score"] = 0.0
+            continue
+
         z_val = z_scores.get(idx, 0.0)
         if_val = iforest_scores.get(idx, 0.0)
 
@@ -136,9 +141,9 @@ def detect_anomalies(transactions: List[Dict[str, Any]]) -> List[Dict[str, Any]]
         combined_score = max(z_val, if_val, freq_boost)
         txn["anomaly_score"] = round(combined_score, 2)
 
-    # Set non-debit transactions to 0.0
+    # Set non-debit and recurring transactions to 0.0
     for txn in transactions:
-        if txn.get("type") != "debit":
+        if txn.get("type") != "debit" or txn.get("is_recurring", False):
             txn["anomaly_score"] = 0.0
 
     return transactions

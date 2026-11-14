@@ -67,3 +67,4 @@ data/*.csv
 
 # Personal
 hackathon*.md
+**/temp-dump/

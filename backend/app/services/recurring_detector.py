@@ -24,8 +24,34 @@ def detect_recurring_patterns(transactions: List[Dict[str, Any]]) -> Tuple[List[
     patterns = []
     recurring_indices = set()
 
+    # Known monthly recurring commitment keywords (e.g. house rent, mortgages, EMIs)
+    HOUSE_AND_BILL_KEYWORDS = [
+        "rent", "house rent", "housing", "landlord", "flat rent", "apartment rent",
+        "society maintenance", "home loan", "mortgage", "car loan", "auto-debit",
+        "mutual fund sip", "sip", "broadband", "electricity bill", "water bill"
+    ]
+
     for norm_name, items in groups.items():
-        if len(items) < 3:
+        is_known_commitment = any(kw in norm_name for kw in HOUSE_AND_BILL_KEYWORDS)
+
+        # Single occurrence check for explicit house rent / housing loan
+        if len(items) == 1 and is_known_commitment:
+            idx, txn = items[0]
+            recurring_indices.add(idx)
+            txn_date = txn["date"]
+            patterns.append({
+                "description": txn["description"],
+                "normalized_name": norm_name,
+                "typical_amount": float(txn["amount"]),
+                "frequency": "monthly",
+                "day_of_period": txn_date.day if hasattr(txn_date, "day") else 1,
+                "next_expected": (txn_date + timedelta(days=30)) if hasattr(txn_date, "day") else None,
+                "confidence": 0.85,
+                "category_id": txn.get("category_id"),
+            })
+            continue
+
+        if len(items) < 2:
             continue
 
         # Sort items chronologically
@@ -41,28 +67,37 @@ def detect_recurring_patterns(transactions: List[Dict[str, Any]]) -> Tuple[List[
                 intervals.append(diff)
 
         if not intervals:
+            if is_known_commitment:
+                for idx, _ in items:
+                    recurring_indices.add(idx)
             continue
 
         mean_interval = np.mean(intervals)
         std_interval = np.std(intervals)
         cv = std_interval / mean_interval if mean_interval > 0 else 1.0
 
-        # Regular cadence check: weekly (~7d), monthly (~28-32d), quarterly (~90d), annual (~365d)
+        # Regular cadence check: weekly (~7d), monthly (~25-35d), quarterly (~90d), annual (~365d)
         is_recurring = False
         frequency = "monthly"
 
-        if 5 <= mean_interval <= 9 and cv < 0.35:
+        allowed_cv = 0.45 if is_known_commitment else 0.35
+
+        if 5 <= mean_interval <= 10 and cv < allowed_cv:
             is_recurring = True
             frequency = "weekly"
-        elif 25 <= mean_interval <= 35 and cv < 0.35:
+        elif 20 <= mean_interval <= 40 and cv < allowed_cv:
             is_recurring = True
             frequency = "monthly"
-        elif 80 <= mean_interval <= 100 and cv < 0.35:
+        elif 75 <= mean_interval <= 105 and cv < allowed_cv:
             is_recurring = True
             frequency = "quarterly"
-        elif 350 <= mean_interval <= 380 and cv < 0.35:
+        elif 340 <= mean_interval <= 390 and cv < allowed_cv:
             is_recurring = True
             frequency = "annual"
+        elif is_known_commitment and 15 <= mean_interval <= 45:
+            # Special guarantee for house payments / bills
+            is_recurring = True
+            frequency = "monthly"
 
         if is_recurring:
             for idx, _ in items:

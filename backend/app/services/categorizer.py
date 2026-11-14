@@ -110,6 +110,40 @@ KEYWORD_RULES = {
     ],
 }
 
+KAGGLE_CATEGORY_MAP = {
+    "grocery_pos": "Food & Dining",
+    "grocery_net": "Food & Dining",
+    "food_dining": "Food & Dining",
+    "food": "Food & Dining",
+    "dining": "Food & Dining",
+    "restaurant": "Food & Dining",
+    "gas_transport": "Transport",
+    "transportation": "Transport",
+    "transport": "Transport",
+    "travel": "Travel",
+    "shopping_pos": "Shopping",
+    "shopping_net": "Shopping",
+    "shopping": "Shopping",
+    "retail": "Shopping",
+    "entertainment": "Entertainment",
+    "health_fitness": "Healthcare",
+    "personal_care": "Healthcare",
+    "health": "Healthcare",
+    "medical": "Healthcare",
+    "kids_pets": "Miscellaneous",
+    "home": "Rent & Housing",
+    "rent": "Rent & Housing",
+    "housing": "Rent & Housing",
+    "utilities": "Utilities",
+    "utility": "Utilities",
+    "salary": "Salary/Income",
+    "income": "Salary/Income",
+    "freelance": "Freelance Income",
+    "misc_pos": "Miscellaneous",
+    "misc_net": "Miscellaneous",
+    "miscellaneous": "Miscellaneous",
+}
+
 class TransactionCategorizer:
     """
     3-Tier Cascading Transaction Categorization Engine:
@@ -186,13 +220,22 @@ class TransactionCategorizer:
             except Exception as e:
                 logger.warning(f"Incremental retraining failed: {e}")
 
-    def categorize(self, description: str, txn_type: str = "debit") -> Tuple[str, float]:
+    def categorize(self, description: str, txn_type: str = "debit", raw_category: Optional[str] = None) -> Tuple[str, float]:
         """
-        Categorizes a single transaction using Tier 1 rules and Tier 2 ML classifier.
+        Categorizes a single transaction using Tier 1 rules, Kaggle maps, and Tier 2 ML classifier.
         Returns (category_name, confidence).
         """
         desc_lower = str(description).lower().strip()
         clean_desc = self._clean_text(description)
+
+        # Direct Kaggle raw category match if available
+        if raw_category:
+            rc_clean = re.sub(r"[_\s]+", "_", str(raw_category).lower().strip())
+            if rc_clean in KAGGLE_CATEGORY_MAP:
+                return KAGGLE_CATEGORY_MAP[rc_clean], 0.95
+            for k_tag, mapped_cat in KAGGLE_CATEGORY_MAP.items():
+                if k_tag in rc_clean:
+                    return mapped_cat, 0.92
 
         # Active Learning Check: direct match with user corrections
         if desc_lower in self.user_corrections:
@@ -246,7 +289,8 @@ class TransactionCategorizer:
         for idx, txn in enumerate(transactions):
             desc = txn.get("description", "")
             ttype = txn.get("type", "debit")
-            cat, conf = self.categorize(desc, txn_type=ttype)
+            rcat = txn.get("raw_category")
+            cat, conf = self.categorize(desc, txn_type=ttype, raw_category=rcat)
             results.append((cat, conf))
 
             # Flag ambiguous items for Tier 3 LLM fallback

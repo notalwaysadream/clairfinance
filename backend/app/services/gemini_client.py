@@ -18,6 +18,7 @@ class GeminiClient:
 
     def __init__(self):
         self.api_key = settings.GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY", "")
+        self.model = getattr(settings, "GEMINI_MODEL", "gemini-3.5-flash-lite")
         self._client = None
         self._last_request_time = 0.0
         self._min_interval = 4.0  # 15 requests per minute limit
@@ -86,44 +87,64 @@ class GeminiClient:
         max_retries = 3
         backoff = 2.0
 
-        for attempt in range(max_retries):
-            try:
-                await self._enforce_rate_limit()
+        candidate_models = [
+            self.model,
+            "gemini-3.5-flash-lite",
+            "gemini-3.1-flash-lite",
+            "gemini-3.8-flash",
+        ]
+        # Deduplicate preserving order
+        models_to_try = []
+        for m in candidate_models:
+            if m and m not in models_to_try:
+                models_to_try.append(m)
 
-                # Run synchronous SDK call in thread pool to avoid blocking async event loop
-                loop = asyncio.get_running_loop()
-                response = await loop.run_in_executor(
-                    None,
-                    lambda: self._client.models.generate_content(
-                        model="gemini-2.0-flash",
-                        contents=prompt,
-                        config=types.GenerateContentConfig(
-                            response_mime_type="application/json",
-                            temperature=0.2,
+        for current_model in models_to_try:
+            for attempt in range(max_retries):
+                try:
+                    await self._enforce_rate_limit()
+
+                    # Run synchronous SDK call in thread pool to avoid blocking async event loop
+                    loop = asyncio.get_running_loop()
+                    response = await loop.run_in_executor(
+                        None,
+                        lambda m=current_model: self._client.models.generate_content(
+                            model=m,
+                            contents=prompt,
+                            config=types.GenerateContentConfig(
+                                response_mime_type="application/json",
+                                temperature=0.2,
+                            )
                         )
                     )
-                )
 
-                if response and response.text:
-                    parsed = json.loads(response.text)
-                    self._set_cache(cache_key, parsed)
-                    return parsed
-                return None
+                    if response and response.text:
+                        parsed = json.loads(response.text)
+                        self.model = current_model
+                        self._set_cache(cache_key, parsed)
+                        return parsed
+                    break
 
-            except Exception as e:
-                err_str = str(e).lower()
-                is_rate_limited = "429" in err_str or "resource_exhausted" in err_str
-                if is_rate_limited and attempt < max_retries - 1:
-                    logger.warning(
-                        f"Gemini rate limit hit on attempt {attempt + 1}. Backing off for {backoff} seconds."
-                    )
-                    await asyncio.sleep(backoff)
-                    backoff *= 2.0
-                else:
-                    logger.error(f"Gemini API request failed on attempt {attempt + 1}: {e}")
-                    if attempt == max_retries - 1:
-                        return None
-                    await asyncio.sleep(1.0)
+                except Exception as e:
+                    err_str = str(e).lower()
+                    if "404" in err_str or "no longer available" in err_str or "not_found" in err_str:
+                        logger.warning(
+                            f"Model {current_model} not available ({e}). Falling back to next candidate."
+                        )
+                        break
+
+                    is_rate_limited = "429" in err_str or "resource_exhausted" in err_str
+                    if is_rate_limited and attempt < max_retries - 1:
+                        logger.warning(
+                            f"Gemini rate limit hit on attempt {attempt + 1}. Backing off for {backoff} seconds."
+                        )
+                        await asyncio.sleep(backoff)
+                        backoff *= 2.0
+                    else:
+                        logger.error(f"Gemini API request failed on attempt {attempt + 1}: {e}")
+                        if attempt == max_retries - 1:
+                            break
+                        await asyncio.sleep(1.0)
 
         return None
 

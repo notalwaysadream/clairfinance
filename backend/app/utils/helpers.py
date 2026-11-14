@@ -45,6 +45,17 @@ PERSONA_REGISTRY: Dict[str, Dict[str, Any]] = {
         "income_pattern": "Pocket money allowance (₹8k–₹12k) + occasional tutoring (₹3k–₹5k)",
         "key_characteristics": "Tight budget, UPI micro-payments, mess fees, semi-annual semester fee spikes",
     },
+    "custom": {
+        "id": "custom",
+        "name": "Custom Statement",
+        "email": "demo.custom@clairfinance.com",
+        "role": "Uploaded Statement",
+        "avatar_url": "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=100&h=100&fit=crop",
+        "csv_file": "",
+        "persona_type": "custom",
+        "income_pattern": "Parsed from user uploaded statement or Kaggle dataset",
+        "key_characteristics": "Custom dataset parsed from uploaded bank statement or Kaggle dataset",
+    },
 }
 
 _active_persona_id = "salaried"

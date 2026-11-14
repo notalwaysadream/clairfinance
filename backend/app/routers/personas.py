@@ -9,6 +9,7 @@ from app.database import get_db
 from app.models.user import User
 from app.models.category import Category
 from app.models.transaction import Transaction
+from app.models.alert import RecurringPattern
 from app.schemas.persona import PersonaInfo, PersonaSwitchResponse
 from app.utils.helpers import (
     PERSONA_REGISTRY,
@@ -37,7 +38,10 @@ async def ensure_persona_data_loaded(db: AsyncSession, persona_id: str, user: Us
         return count
 
     persona = PERSONA_REGISTRY[persona_id]
-    csv_file = DATA_DIR / persona["csv_file"]
+    csv_file_name = persona.get("csv_file")
+    if not csv_file_name:
+        return 0
+    csv_file = DATA_DIR / csv_file_name
     if not csv_file.exists():
         return 0
 
@@ -56,9 +60,9 @@ async def ensure_persona_data_loaded(db: AsyncSession, persona_id: str, user: Us
         txn["category_id"] = matched.id if matched else None
         txn["category_name"] = matched.name if matched else "Miscellaneous"
 
-    # Anomalies and Recurring
+    # Detect recurring patterns first so recurring payments (e.g. house rent, EMIs) are marked
+    raw_txns, detected_patterns = detect_recurring_patterns(raw_txns)
     raw_txns = detect_anomalies(raw_txns)
-    raw_txns, _ = detect_recurring_patterns(raw_txns)
 
     db_items = [
         Transaction(
@@ -77,6 +81,23 @@ async def ensure_persona_data_loaded(db: AsyncSession, persona_id: str, user: Us
         for item in raw_txns
     ]
     db.add_all(db_items)
+
+    db_patterns = [
+        RecurringPattern(
+            user_id=user.id,
+            description=p["description"],
+            category_id=p.get("category_id"),
+            typical_amount=p["typical_amount"],
+            frequency=p["frequency"],
+            day_of_period=p.get("day_of_period", 1),
+            next_expected=p.get("next_expected"),
+            confidence=p.get("confidence", 0.9),
+        )
+        for p in detected_patterns
+    ]
+    if db_patterns:
+        db.add_all(db_patterns)
+
     await db.commit()
     return len(db_items)
 
@@ -88,6 +109,8 @@ async def list_personas():
     active_id = get_active_persona_id()
     result = []
     for pid, p in PERSONA_REGISTRY.items():
+        if pid == "custom" and pid != active_id:
+            continue
         result.append(PersonaInfo(
             id=p["id"],
             name=p["name"],

@@ -28,6 +28,7 @@ async def get_anomalies(
         Transaction.user_id == current_user.id,
         Transaction.type == "debit",
         Transaction.anomaly_score >= min_score,
+        Transaction.is_recurring == False,
     ]
     if category_id:
         filters.append(Transaction.category_id == category_id)
@@ -79,7 +80,8 @@ async def get_anomaly_patterns(
         .where(and_(
             Transaction.user_id == current_user.id,
             Transaction.type == "debit",
-            Transaction.anomaly_score > 0.0
+            Transaction.anomaly_score > 0.0,
+            Transaction.is_recurring == False,
         ))
         .order_by(desc(Transaction.anomaly_score))
     )

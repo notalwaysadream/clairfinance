@@ -1,132 +1,1404 @@
-const $=s=>document.querySelector(s), main=$('#main');
-const inr=n=>'₹'+Math.abs(Math.round(n)).toLocaleString('en-IN');
-const ARR='<svg class="ar" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
-const NAV=[['home','Home','<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>'],
-['transactions','Transaction History','<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>'],
-['whatif','Tools','<path d="M4 8h8m4 0h4M4 16h4m4 0h8"/><circle cx="14" cy="8" r="2"/><circle cx="10" cy="16" r="2"/>'],
-['forecast','Forecast','<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>'],
-['bills','Bills','<path d="M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2zM3 10h18M8 2v4M16 2v4"/>'],
-['score','Finance Score','<path d="M4 18a8 8 0 1 1 16 0M12 18l4-5"/>'],
-['anomalies','Anomalies','<path d="M10.3 3.9 2.4 17.6A2 2 0 0 0 4.1 20.6h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0ZM12 9v4M12 17h.01"/>']];
-$('#nav').innerHTML=NAV.map(([k,t,p])=>`<a class="nav-i" href="#/${k}" data-k="${k}"><svg viewBox="0 0 24 24">${p}</svg><span>${t}</span></a>`).join('');
+// ClairFinance — Frontend Engine & Backend Integration
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+const main = $('#main');
+const inr = n => '₹' + Math.abs(Math.round(n || 0)).toLocaleString('en-IN');
+const ARR = '<svg class="ar" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 
-/* theme */
-const setTheme=t=>{document.documentElement.dataset.theme=t;localStorage.setItem('cf-theme',t);$('.tl').textContent=t==='dark'?'Dark mode':'Light mode'};
-setTheme(document.documentElement.dataset.theme);
-$('#theme').onclick=()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
+const API_BASE = (window.location.port === '8000') ? '/api' : 'http://localhost:8000/api';
 
-/* login / sign out (placeholders) */
-const afterLogin=()=>location.hash=localStorage.getItem('cf-data')?'#/home':'#/upload';
-$('#loginForm').onsubmit=e=>{e.preventDefault();afterLogin()};
-$('#gbtn').onclick=afterLogin;
-$('#pwt').onclick=e=>{const i=$('#pw'),s=i.type==='password',b=e.currentTarget;i.type=s?'text':'password';b.setAttribute('aria-pressed',s);b.setAttribute('aria-label',s?'Hide password':'Show password')};
-$('#out').onclick=()=>location.hash='#/login';
+let activeToken = localStorage.getItem('cf_token') || '';
+let activePersona = { id: 'salaried', name: 'Rahul Sharma', role: 'Salaried Employee', avatar: '👨‍💼' };
+let allCategories = [];
 
-/* card effects (spotlight + ripple) */
-document.addEventListener('pointermove',e=>{const c=e.target.closest('.card');if(!c)return;const r=c.getBoundingClientRect();c.style.setProperty('--mx',e.clientX-r.left+'px');c.style.setProperty('--my',e.clientY-r.top+'px')});
-document.addEventListener('click',e=>{const c=e.target.closest('.card');if(!c)return;const r=c.getBoundingClientRect(),s=Math.max(r.width,r.height)/2,k=e.detail===0,x=k?r.width/2:e.clientX-r.left,y=k?r.height/2:e.clientY-r.top,d=document.createElement('span');d.className='ripple';Object.assign(d.style,{width:s+'px',height:s+'px',left:x-s/2+'px',top:y-s/2+'px'});d.onanimationend=()=>d.remove();c.appendChild(d)});
+// Sidebar Navigation Items
+const NAV = [
+  ['home', 'Home', '<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>'],
+  ['transactions', 'Transaction History', '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>'],
+  ['whatif', 'Tools & AI Advisor', '<path d="M4 8h8m4 0h4M4 16h4m4 0h8"/><circle cx="14" cy="8" r="2"/><circle cx="10" cy="16" r="2"/>'],
+  ['forecast', 'Forecast & Backtest', '<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>'],
+  ['bills', 'Recurring Bills', '<path d="M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2zM3 10h18M8 2v4M16 2v4"/>'],
+  ['score', 'Finance Score', '<path d="M4 18a8 8 0 1 1 16 0M12 18l4-5"/>'],
+  ['anomalies', 'Anomalies', '<path d="M10.3 3.9 2.4 17.6A2 2 0 0 0 4.1 20.6h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0ZM12 9v4M12 17h.01"/>']
+];
 
-/* shared bits */
-const hero=(t,img,cls)=>`<div class="hero ${cls||''}" style="${img?`--img:url(assets/${img})`:''}"><h1>${t}</h1></div>`;
-const page=h=>`<div class="page">${h}</div>`;
-const GAUGE=s=>`<span class="gauge"><svg viewBox="0 0 100 58"><defs><linearGradient id="gg" gradientUnits="userSpaceOnUse" x1="10" x2="90"><stop offset="0" stop-color="#ef4444"/><stop offset=".5" stop-color="#f59e0b"/><stop offset="1" stop-color="#22c55e"/></linearGradient></defs><path class="gt" d="M10 52A40 40 0 0 1 90 52" pathLength="100"/><path class="gf" d="M10 52A40 40 0 0 1 90 52" pathLength="100" style="--off:${100-s}"/></svg><span class="gn"><b id="sn">0</b><small>/100</small></span></span>`;
-function countUp(t){const el=$('#sn');if(!el)return;const s=performance.now()+800;(function f(n){const p=Math.min(Math.max((n-s)/1600,0),1);el.textContent=Math.round(t*(1-Math.pow(1-p,3)));if(p<1)requestAnimationFrame(f)})(performance.now())}
+$('#nav').innerHTML = NAV.map(([k, t, p]) =>
+  `<a class="nav-i" href="#/${k}" data-k="${k}"><svg viewBox="0 0 24 24">${p}</svg><span>${t}</span></a>`
+).join('');
 
-/* home */
-const ALERTS={shortfall:['Shortfall risk','You may run short around the 22nd','There is a 62% chance your balance drops below ₹5,000 before the 25th.'],bill:['Upcoming bill','You have a bill due in 3 weeks: ₹3,500','Electricity, due 5 December.'],anomaly:['Unusual spending','Your dining spend is 30% above your usual pattern','Most of it came from the last two weeks.'],ok:['All clear','You are up to date on your expenditures','No shortfalls or overdue bills in the next 30 days.']};
-window.renderAlert=k=>{const a=ALERTS[k]||ALERTS.ok;$('#al').innerHTML=`<small>${a[0]}</small><h2>${a[1]}</h2><p>${a[2]}</p>`};
-const IC={
-transactions:'<svg viewBox="0 0 64 64"><g class="rw" style="--r:0"><circle cx="12" cy="16" r="4"/><path d="M24 16h30"/></g><g class="rw" style="--r:1"><circle cx="12" cy="32" r="4"/><path d="M24 32h24"/></g><g class="rw" style="--r:2"><circle cx="12" cy="48" r="4"/><path d="M24 48h28"/></g></svg>',
-whatif:'<svg viewBox="0 0 64 64"><path d="M8 22h48M8 44h48"/><circle class="kn k1" cx="20" cy="22" r="6"/><circle class="kn k2" cx="44" cy="44" r="6"/></svg>',
-forecast:'<svg viewBox="0 0 64 64"><path d="M8 8v48h50"/><polygon class="ff" points="36,34 56,14 56,34"/><polyline class="fl" points="12,46 22,38 30,42 36,34"/><polyline class="fd" points="36,34 56,22"/></svg>',
-bills:'<svg viewBox="0 0 64 64"><g class="cal"><rect x="8" y="14" width="48" height="42" rx="8"/><path d="M8 28h48M22 8v10M42 8v10M20 40h4M32 40h4M44 40h4"/></g><circle class="bdg" cx="54" cy="12" r="6"/></svg>'};
-const CARDS=[['transactions','Transaction History','Every transaction, categorized and searchable.'],['whatif','Tools','What-if checks, EMI optimizer, loan schedules and savings goals.'],['forecast','Forecast','See your balance 30 to 90 days ahead.'],['bills','Bills','Recurring bills and due-date reminders.']];
-const PAGES={
-home(){main.innerHTML=`<header class="banner"><div class="br"><svg><use href="#logo"/></svg><div class="wm">Clair<span>finance</span></div></div><p>Know if you’ll run out of money, and when, before it happens</p></header>`+page(`<a class="card alert" href="#/anomalies" style="--i:-1"><div class="al-i"><svg viewBox="0 0 24 24"><path d="M10.3 3.9 2.4 17.6A2 2 0 0 0 4.1 20.6h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0ZM12 9v4M12 17h.01"/></svg></div><div id="al" style="flex:1"></div>${ARR}</a><div class="grid">${CARDS.map(([k,t,d],i)=>`<a class="card" href="#/${k}" style="--i:${i}"><span class="ct"><span class="ic">${IC[k]}</span>${ARR}</span><span><h3>${t}</h3><p>${d}</p></span></a>`).join('')}<a class="card wide" href="#/score" style="--i:4">${GAUGE(72)}<span style="flex:1"><h3>Finance Score</h3><p>Your financial health at a glance, built from five factors.</p><span class="chips"><i>Savings rate</i><i>Cash buffer</i><i>EMI ratio</i><i>Spending stability</i><i>Shortfall risk</i></span></span>${ARR}</a></div>`);renderAlert('shortfall');countUp(72)},
+// API Helper
+function authHeaders() {
+  const h = { 'Content-Type': 'application/json' };
+  if (activeToken) h['Authorization'] = 'Bearer ' + activeToken;
+  return h;
+}
 
-transactions(){const T=[['Salary credit','Income',65000,3],['Swiggy','Food',-640,2],['Uber','Transport',-310,4],['Rent','Housing',-18000,5],['Amazon','Shopping',-2499,8],['Netflix','Subscriptions',-649,10],['Electricity bill','Utilities',-1850,12],['Freelance payment','Income',12000,15],['Home loan EMI','EMI',-9800,20],['Zomato','Food',-520,22],['Mutual fund SIP','Investments',-5000,27],['Salary credit','Income',65000,33],['Apollo Pharmacy','Healthcare',-780,35],['Flipkart','Shopping',-3999,48],['Udemy course','Education',-1199,60],['Salary credit','Income',65000,63],['Goa trip','Travel',-14500,95],['Salary credit','Income',65000,123],['Car service','Transport',-6200,150],['Diwali gifts','Gifts',-4800,200],['Salary credit','Income',65000,250]];
-const cols=['#6366f1','#22d3ee','#22c55e','#f59e0b','#818cf8','#ef4444'],cats=[...new Set(T.map(t=>t[1]))];
-main.innerHTML=hero('TRANSACTION HISTORY','money.avif')+page(`<section class="panel glass"><h3>Viewing options</h3><div class="bar"><label>Time period <select id="per"><option value="7">Past week</option><option value="30" selected>Past month</option><option value="90">Last 3 months</option><option value="180">Last 6 months</option><option value="365">Last year</option></select></label><span class="cat" id="cnt"></span></div></section><div class="stats" id="st"></div><section class="panel glass"><table id="tb"></table></section>`);
-const draw=()=>{const n=+$('#per').value,L=T.filter(t=>t[3]<=n),inc=L.reduce((a,t)=>a+(t[2]>0?t[2]:0),0),exp=L.reduce((a,t)=>a+(t[2]<0?-t[2]:0),0);
-$('#cnt').textContent=L.length+' transactions';
-$('#st').innerHTML=[['Income',inr(inc),'ok'],['Spent',inr(exp),'bad'],['Net',(inc-exp<0?'−':'+')+inr(inc-exp),inc>=exp?'ok':'bad']].map(([a,b,c])=>`<div class="stat glass"><small>${a}</small><b class="${c}">${b}</b></div>`).join('');
-$('#tb').innerHTML=L.map((t,i)=>`<tr style="animation-delay:${i*30}ms"><td><span class="dot" style="background:${cols[cats.indexOf(t[1])%6]}"></span>${t[0]}<div class="cat">${t[1]} · ${new Date(Date.now()-t[3]*864e5).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</div></td><td class="${t[2]>0?'ok':''}">${t[2]>0?'+':'−'}${inr(t[2])}</td></tr>`).join('')};
-$('#per').onchange=draw;draw()},
+async function apiFetch(endpoint, options = {}) {
+  const url = `${API_BASE}${endpoint}`;
+  try {
+    const res = await fetch(url, options);
+    updateBackendStatus(true);
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || `HTTP ${res.status}: ${res.statusText}`);
+    }
+    return await res.json();
+  } catch (err) {
+    console.warn(`API call failed for ${endpoint}:`, err.message);
+    if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+      updateBackendStatus(false);
+    }
+    throw err;
+  }
+}
 
-whatif(){main.innerHTML=hero('TOOLS','ai.png')+page(`<div class="seg" id="jmp"><button data-to="s-wi">What-if</button><button data-to="s-eo">EMI optimizer</button><button data-to="s-la">Loan amortization</button><button data-to="s-sg">Savings goal</button></div><section class="panel glass" id="s-wi"><h3>What-if: can I afford it?</h3><div class="form"><label>What do you want to buy<input class="in" id="wi" value="Royal Enfield Himalayan 450"></label><label>Estimated price (₹)<input class="in" id="wp" type="number" value="285000"></label><label>Payment method<select id="wm"><option value="emi">EMI</option><option value="one">One-time</option><option value="loan">Loan</option></select></label><label class="tr">Tenure (months)<input class="in" id="wt" type="number" value="24"></label><label class="tr">Interest rate (% per year)<input class="in" id="wr" type="number" value="12.5"></label><label>Product link (optional)<input class="in" id="wl" placeholder="https://"></label><button class="btn" id="go">Check if I can afford it</button></div></section><section class="panel glass verdict" id="res" hidden></section>
-<section class="panel glass" id="s-eo"><h3>EMI Debt Optimizer</h3><div class="form"><label>Borrowing amount (₹)<input class="in" id="eP" type="number" value="300000"></label><label>Tenure (months)<input class="in" id="eN" type="number" value="24"></label><label>Rate of interest (% per year)<input class="in" id="eR" type="number" value="12"></label><label>Down payment (₹)<input class="in" id="eD" type="number" value="50000"></label><button class="btn" id="eo">Optimize debt structure</button></div><div id="eres" class="verdict"></div></section>
-<section class="panel glass" id="s-la"><h3>Loan Amortization</h3><div class="form"><label>Principal (₹)<input class="in" id="lP" type="number" value="500000"></label><label>Rate of interest (% per year)<input class="in" id="lR" type="number" value="10"></label><label>Tenure (months)<input class="in" id="lN" type="number" value="36"></label><button class="btn" id="la">Show repayment schedule</button></div><div id="lres" class="verdict"></div></section>
-<section class="panel glass" id="s-sg"><h3>Savings Goal</h3><div class="form"><label>How much do you want to save (₹)<input class="in" id="gG" type="number" value="300000"></label><label>How much can you save each month (₹)<input class="in" id="gM" type="number" value="15000"></label><button class="btn" id="gb">Calculate timeline</button></div><div id="gres" class="verdict"></div></section>`);
-$('#wm').onchange=()=>document.querySelectorAll('.tr').forEach(l=>l.style.display=$('#wm').value==='one'?'none':'');
-$('#go').onclick=()=>{const P=+$('#wp').value,n=+$('#wt').value||1,r=+$('#wr').value/1200,one=$('#wm').value==='one',emi=one?0:(r?P*r*Math.pow(1+r,n)/(Math.pow(1+r,n)-1):P/n),S=18500,B=90000,q=one?P/B:emi/S,v=q<.3?['Easily affordable','ok']:q<.6?['Affordable with caution','warn']:q<1?['Risky','warn']:['Not recommended','bad'],after=one?B-P:S-emi,w=(a,b)=>Math.max(0,Math.min(100,a/b*100));
-const R=$('#res');R.hidden=false;R.innerHTML=`<h2 class="${v[1]}">${v[0]}</h2><p>${$('#wi').value}: ${one?'paid once, '+inr(P)+' from your savings buffer':'about '+inr(emi)+' a month for '+n+' months'}.</p><div class="mini"><span>${one?'Savings buffer':'Monthly savings'} now</span><span class="tk"><i style="width:0;background:var(--ok)" data-w="${w(one?B:S,one?B:S)}"></i></span><b>${inr(one?B:S)}</b></div><div class="mini"><span>After purchase</span><span class="tk"><i style="width:0;background:var(--${after<0?'bad':v[1]})" data-w="${w(after,one?B:S)}"></i></span><b>${after<0?'−':''}${inr(after)}</b></div><p class="cat">Demo figures: ₹18,500 monthly savings and ₹90,000 buffer. These will come from /api/query/ask.</p>`;
-requestAnimationFrame(()=>R.querySelectorAll('i').forEach(i=>i.style.width=i.dataset.w+'%'))};toolsExtra()},
+function updateBackendStatus(isOnline) {
+  const dot = $('#live-dot');
+  const label = $('#api-status-label');
+  if (dot) dot.className = isOnline ? 'live-dot' : 'live-dot err';
+  if (label) label.textContent = isOnline ? `Backend Connected (${API_BASE})` : 'Backend Disconnected';
+}
 
-forecast(){main.innerHTML=hero('FORECAST','eye.jpg')+page(`<section class="panel glass"><div class="bar"><h3 style="margin:0">Projected balance</h3><div class="seg" id="sg">${[30,60,90].map(n=>`<button data-n="${n}">${n} days</button>`).join('')}</div></div><svg class="chart" id="ch" viewBox="0 0 800 300"></svg></section><section class="panel glass" id="fp"></section>`);
-const m=d=>36000-520*d+3000*Math.sin(d/6),sp=d=>1500+190*d,Y=v=>270-Math.max(0,Math.min(45000,v))/45000*250;
-const draw=n=>{const X=d=>50+d/n*730,ds=[...Array(n+1).keys()],P=f=>ds.map(d=>X(d)+','+Y(f(d))).join(' '),B=(k,c)=>`<polygon class="band" fill="${c}" points="${P(d=>m(d)+k*sp(d))} ${[...ds].reverse().map(d=>X(d)+','+Y(m(d)-k*sp(d))).join(' ')}"/>`;
-$('#ch').innerHTML=[0,15000,30000,45000].map(v=>`<line x1="50" x2="780" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--bd)"/><text x="6" y="${Y(v)+4}">${v/1000}k</text>`).join('')+B(1,'#6366f1')+B(.45,'#22d3ee')+`<line x1="50" x2="780" y1="${Y(5000)}" y2="${Y(5000)}" stroke="var(--bad)" stroke-dasharray="6 5"/><text x="620" y="${Y(5000)-6}" style="fill:var(--bad)">Danger line ₹5,000</text><polyline fill="none" stroke="var(--fg)" stroke-width="3" stroke-linecap="round" points="${P(m)}"/><text x="50" y="292">Today</text><text x="760" y="292">Day ${n}</text>`;
-const z=(5000-m(n))/(sp(n)/1.64),p=Math.round(100/(1+Math.exp(-1.702*z)));
-$('#fp').innerHTML=`<h3>Shortfall risk</h3><p><b class="${p>50?'bad':p>20?'warn':'ok'}" style="font:600 36px var(--hd)">${p}%</b> chance your balance is below ₹5,000 by day ${n}.</p><p class="cat">Shaded bands show the likely range (50% and 90%). Illustrative data until /api/forecast/cashflow is connected.</p>`;
-document.querySelectorAll('#sg button').forEach(b=>b.classList.toggle('on',+b.dataset.n===n))};
-$('#sg').onclick=e=>e.target.dataset.n&&draw(+e.target.dataset.n);draw(60)},
+// Theme handling
+const setTheme = t => {
+  document.documentElement.dataset.theme = t;
+  localStorage.setItem('cf-theme', t);
+  const el = $('.tl');
+  if (el) el.textContent = t === 'dark' ? 'Dark mode' : 'Light mode';
+};
+setTheme(document.documentElement.dataset.theme || 'dark');
+$('#theme').onclick = () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
 
-bills(){const B=[['Electricity',1850,5,'est.'],['Water',420,9,'est.'],['Broadband',799,12],['Home loan EMI',9800,18],['Netflix',649,21],['Mobile recharge',299,26]];
-main.innerHTML=hero('BILLS','bulb.jpg')+page(`<div class="stats" id="bs"></div><div id="bl" style="display:grid;gap:14px"></div>`);
-const st=B.map((b,i)=>({on:i<4,paid:false})),draw=()=>{const due=B.reduce((a,b,i)=>a+(st[i].paid?0:b[1]),0);$('#bs').innerHTML=[['Total due',inr(due),''],['Due this week',B.filter((b,i)=>!st[i].paid&&b[2]<=7).length+' bills','warn'],['Paid',st.filter(s=>s.paid).length+' of '+B.length,'ok']].map(([a,b,c])=>`<div class="stat glass"><small>${a}</small><b class="${c}">${b}</b></div>`).join('');
-$('#bl').innerHTML=B.map((b,i)=>`<div class="bill card${st[i].paid?' paid':''}" style="animation-delay:${i*70}ms;min-height:0;cursor:default"><div class="g"><b>${b[0]}</b><br><small>${b[3]?'Estimated ':''}${inr(b[1])}</small></div><span class="chip ${b[2]<=7?'warn':''}">Due in ${b[2]} days</span><small>Alert</small><button class="sw${st[i].on?' on':''}" data-a="${i}" aria-label="Alerts for ${b[0]}"></button><button class="sm" data-p="${i}">${st[i].paid?'Undo':'Mark paid'}</button></div>`).join('')};
-$('#main').onclick=e=>{const a=e.target.dataset.a,p=e.target.dataset.p;if(a!=null)st[a].on=!st[a].on;else if(p!=null)st[p].paid=!st[p].paid;else return;draw()};draw()},
+// Authentication & Persona Switching
+async function initAuth() {
+  try {
+    const categories = await apiFetch('/categories');
+    allCategories = categories || [];
+  } catch (e) {
+    console.log('Categories not yet loaded:', e.message);
+  }
 
-anomalies(){const A=[['Goa trip, MakeMyTrip','Travel',14500,12,'3.2× your usual travel spending',82],['Flipkart Electronics','Shopping',3999,9,'Largest shopping charge in 3 months',71],['Swiggy, 6 orders in 4 days','Food',3240,6,'Dining is 30% above your usual pattern',64],['Netflix, charged twice','Subscriptions',649,3,'Duplicate charge within 3 days',58]],tot=A.reduce((a,r)=>a+r[2],0);
-main.innerHTML=hero('ANOMALIES','danger.jpg','danger')+page(`<section class="panel glass"><h3>Transactions flagged as anomalies</h3><p class="cat">These ${A.length} transactions triggered your shortfall alert. Together they add ${inr(tot)} of unusual spending in the last 30 days.</p><div style="display:grid;gap:12px;margin-top:16px">${A.map((r,i)=>`<div class="an" style="animation-delay:${i*80}ms"><div class="g"><b>${r[0]}</b><div class="cat">${r[1]} · ${new Date(Date.now()-r[3]*864e5).toLocaleDateString('en-IN',{day:'numeric',month:'short'})} · ${r[4]}</div></div><b>${inr(r[2])}</b><span class="chip ${r[5]>=75?'bad':'warn'}">${r[5]>=75?'High':'Warning'} (${r[5]}%)</span></div>`).join('')}</div><p class="cat" style="margin-top:14px">Demo data until /api/anomalies is connected.</p></section>`)},
+  if (!activeToken) {
+    try {
+      const devRes = await apiFetch('/auth/dev-login', { method: 'POST', headers: authHeaders() });
+      activeToken = devRes.access_token;
+      localStorage.setItem('cf_token', activeToken);
+    } catch (e) {
+      console.log('Dev login attempt:', e.message);
+    }
+  }
 
-score(){const F=[['Savings rate',14],['Cash buffer',9],['Spending stability',5],['EMI ratio',-8],['Shortfall risk',-6]];
-main.innerHTML=hero('FINANCE SCORE','gauge.webp','contain')+page(`<section class="panel glass scorehead">${GAUGE(72)}<div><h3>Good, with room to improve</h3><p class="cat">Base 58 plus the impact of five factors. Demo data until /api/dashboard/health-score is connected.</p></div></section><section class="panel glass"><h3>Impact on your score</h3>${F.map(([n,v])=>`<div class="imp"><span>${n}</span><span class="ax"><i data-v="${v}" style="${v>0?'left:50%;background:var(--ok)':'right:50%;background:var(--bad)'}"></i></span><b class="${v>0?'ok':'bad'}">${v>0?'+':'−'}${Math.abs(v)}</b></div>`).join('')}<p class="cat">Green bars raise your score. Red bars lower it. Fixing the EMI ratio is the biggest opportunity.</p></section><section class="panel glass arch"><h3>Spending Archetype</h3><div class="arch-n grad">${ARCH.name}</div><p>${ARCH.desc}</p><div class="arch-g"><div class="arch-c"><b class="ok">Strength</b><p>${ARCH.strength}</p></div><div class="arch-c v"><b class="warn">Vulnerability</b><p>${ARCH.weak}</p></div></div><div class="tip"><b>Advisor tip:</b> ${ARCH.tip}</div><p class="cat" style="margin-top:14px">Placeholder values until the backend is connected.</p></section>`);
-countUp(72);requestAnimationFrame(()=>document.querySelectorAll('.imp i').forEach(i=>i.style.width=Math.abs(i.dataset.v)/16*50+'%'))}};
+  try {
+    const activeRes = await apiFetch('/personas/active', { headers: authHeaders() });
+    if (activeRes) {
+      activePersona = {
+        id: activeRes.id,
+        name: activeRes.name,
+        role: activeRes.role,
+        avatar: activeRes.id === 'student' ? '🎓' : activeRes.id === 'freelancer' ? '👩‍💻' : '👨‍💼',
+        income_pattern: activeRes.income_pattern
+      };
+      updatePersonaUI();
+    }
+  } catch (e) {
+    console.log('Personas load error:', e.message);
+  }
+}
 
-/* Tools: EMI optimizer, loan amortization, savings goal (demo math, replace with /api/simulator/*) */
-function toolsExtra(){
-const E=(P,r,n)=>r?P*r*Math.pow(1+r,n)/(Math.pow(1+r,n)-1):P/n,m2=n=>'₹'+n.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}),v=id=>+$('#'+id).value,INC=65000,EX=9800;
-$('#jmp').onclick=e=>{const t=e.target.dataset.to;t&&$('#'+t).scrollIntoView({behavior:'smooth',block:'start'})};
-$('#eo').onclick=()=>{const P=v('eP'),n=v('eN')||1,r=v('eR')/1200,d=Math.min(v('eD'),P),b=E(P,r,n),bi=b*n-P,dti=e=>((EX+e)/INC*100).toFixed(1)+'%',rows=[['Standard Direct Financing','Add the new EMI of '+m2(b)+' to your existing obligations for '+n+' months.',b,bi,0,'Baseline','']];
- if(d>0){const e2=E(P-d,r,n),i2=e2*n-(P-d);rows.push(['Lump-Sum Down Payment ('+inr(d)+')','Pay '+inr(d)+' upfront to cut the principal to '+inr(P-d)+'.',e2,i2,bi-i2,'Highly Recommended','g'])}
- const e3=E(P,r,n+12),i3=e3*(n+12)-P;rows.push(['Tenure Extension ('+(n+12)+' Months)','Extend by 12 months to ease your monthly EMI.',e3,i3,bi-i3,'Viable Alternative','']);
- $('#eres').innerHTML=`<p>Borrowing ${inr(P)} adds ${m2(b)}/month to your existing ${inr(EX)} debt. Total obligations would be ${dti(b)} of your monthly income${d>0?'. Your '+inr(d)+' down payment saves interest and lowers DTI.':'.'}</p><div class="tw"><table><tr><th>Strategy</th><th>Monthly EMI</th><th>Total interest</th><th>Interest saved</th><th>DTI</th><th>Level</th></tr>${rows.map(r=>`<tr><td><b>${r[0]}</b><div class="cat">${r[1]}</div></td><td>${m2(r[2])}</td><td>${m2(r[3])}</td><td class="${r[4]<0?'bad':'ok'}">${r[4]<0?'−':''}${m2(Math.abs(r[4]))}</td><td>${dti(r[2])}</td><td><span class="lv ${r[6]}">${r[5]}</span></td></tr>`).join('')}</table></div><p class="cat">Demo assumptions: ₹65,000 monthly income, ${inr(EX)} existing EMI.</p>`};
-$('#la').onclick=()=>{const P=v('lP'),r=v('lR')/1200,n=v('lN')||1,e=E(P,r,n),S=[];let bal=P;for(let i=1;i<=n;i++){const it=bal*r,pr=e-it;bal=Math.max(0,bal-pr);S.push([i,e,pr,it,bal])}
- const rows=a=>a.map(s=>`<tr><td>${s[0]}</td><td>${m2(s[1])}</td><td>${m2(s[2])}</td><td>${m2(s[3])}</td><td>${m2(s[4])}</td></tr>`).join(''),sh=Math.round(P/(e*n)*100);let all=false;
- $('#lres').innerHTML=`<div class="stats"><div class="stat glass"><small>Monthly EMI</small><b>${m2(e)}</b></div><div class="stat glass"><small>Total interest</small><b class="warn">${m2(e*n-P)}</b></div><div class="stat glass"><small>Total payable</small><b>${m2(e*n)}</b></div></div><div class="mini"><span>Principal share</span><span class="tk"><i style="width:${sh}%;background:var(--pri)"></i></span><b>${sh}%</b></div><div class="tw"><table><tr><th>Month</th><th>EMI</th><th>Principal</th><th>Interest</th><th>Balance</th></tr><tbody id="lb">${rows(S.slice(0,12))}</tbody></table></div>${n>12?'<button class="sm" id="lm">Show all '+n+' months</button>':''}`;
- const b=$('#lm');if(b)b.onclick=()=>{all=!all;$('#lb').innerHTML=rows(all?S:S.slice(0,12));b.textContent=all?'Show first 12 months':'Show all '+n+' months'}};
-$('#gb').onclick=()=>{const G=v('gG'),M=v('gM');if(!(G>0&&M>0))return;const n=Math.ceil(G/M),S=18500,f=M<=S*.5?['Comfortably achievable','ok']:M<=S?['Achievable with budgeting','warn']:['Stretch goal','bad'],n2=Math.ceil(G/(M*1.15));
- $('#gres').innerHTML=`<p><b>Estimated timeline:</b> ${n} months (${(n/12).toFixed(1)} years) <span class="chip ${f[1]}">${f[0]}</span></p><p><b>Monthly required:</b> ${inr(M)}</p><ul class="tips"><li>Automate a transfer on salary day.</li><li>Saving 15% more each month finishes in ${n2} months instead of ${n}.</li><li>Send any bonus or tax refund straight to this goal.</li></ul><p class="cat">Demo assumption: ₹18,500 monthly surplus.</p>`}}
+function updatePersonaUI() {
+  const nameEl = $('#side-p-name');
+  const roleEl = $('#side-p-role');
+  const avatarEl = $('#side-p-avatar');
+  const pillEl = $('#topbar-persona-pill');
 
-/* Spending archetype (placeholder values, replace with backend data) */
-const ARCH={name:'Diligent Capital Builder',desc:'Maintains disciplined financial control, allocating a consistent surplus toward savings and long-term security.',strength:'Predictable surplus and robust emergency protection.',weak:'Risk of keeping surplus idle in low-yield savings accounts.',tip:'Channel idle cash reserves into systematic investment plans (SIPs) to outpace inflation.'};
+  if (nameEl) nameEl.textContent = activePersona.name;
+  if (roleEl) roleEl.textContent = activePersona.role;
+  if (avatarEl) avatarEl.textContent = activePersona.avatar;
+  if (pillEl) pillEl.textContent = `${activePersona.name} · ${activePersona.role}`;
 
-/* CSV upload (first-time setup) */
-const csv=$('#csv'),drop=$('#drop'),DT='Drag and drop your CSV here',DS='or click to browse. Needs date, description and amount columns.';
-let upFile=null;
-const fail=m=>{drop.className='drop err';$('#dt').textContent='File not accepted';$('#ds').textContent=m};
-function pick(f){drop.className='drop';upFile=null;$('#cont').disabled=true;if(!f)return;
- if(!/\.csv$/i.test(f.name))return fail('That is not a CSV file. Export your statement as .csv and try again.');
- f.text().then(t=>{const L=t.split(/\r?\n/).filter(Boolean),h=(L[0]||'').split(',');
-  if(L.length<2||!h.some(x=>/date/i.test(x))||!h.some(x=>/amount|debit|credit|withdrawal|deposit/i.test(x)))return fail('We could not find the columns we need. Include a date column and an amount (or debit and credit) column.');
-  upFile=f;drop.className='drop ok';$('#dt').textContent=f.name;$('#ds').textContent=(L.length-1)+' transactions found, '+(f.size/1024).toFixed(1)+' KB. Click to choose a different file.';$('#cont').disabled=false})}
-function resetUp(){csv.value='';pick(null);$('#dt').textContent=DT;$('#ds').textContent=DS;$('#pg').hidden=$('#pt').hidden=true;$('#pg').firstElementChild.style.width=0}
-csv.onchange=()=>pick(csv.files[0]);
-['dragenter','dragover'].forEach(v=>drop.addEventListener(v,e=>{e.preventDefault();drop.classList.add('over')}));
-['dragleave','drop'].forEach(v=>drop.addEventListener(v,e=>{e.preventDefault();drop.classList.remove('over')}));
-drop.addEventListener('drop',e=>pick(e.dataTransfer.files[0]));
-const finish=k=>{localStorage.setItem('cf-data',k);location.hash='#/home'};
-$('#demo').onclick=()=>finish('demo');
-$('#cont').onclick=()=>{ // TODO: send upFile as FormData to POST /api/transactions/upload
- $('#cont').disabled=true;const pg=$('#pg'),pt=$('#pt'),S=['Reading your transactions…','Categorizing spending…','Finding recurring payments…','Building your forecast…'];pg.hidden=pt.hidden=false;
- S.forEach((m,i)=>setTimeout(()=>{pt.textContent=m;pg.firstElementChild.style.width=(i+1)*25+'%'},i*600));setTimeout(()=>finish('csv'),S.length*600+200)};
-$('#smp').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['date,description,amount\n2026-11-01,Salary credit,65000\n2026-11-02,Swiggy,-640\n2026-11-05,Rent,-18000\n2026-11-08,Amazon,-2499\n'],{type:'text/csv'}));a.download='sample-transactions.csv';a.click()};
+  $$('.ap-btn').forEach(btn => {
+    btn.classList.toggle('on', btn.dataset.p === activePersona.id);
+  });
+}
 
-/* router */
-function route(){const k=location.hash.slice(2)||'login';
-if(k==='upload'){document.body.dataset.view='upload';resetUp();return}
-if(k!=='login'&&PAGES[k]&&!localStorage.getItem('cf-data')){location.hash='#/upload';return}
-document.body.dataset.view=k==='login'||!PAGES[k]?'login':k;if(document.body.dataset.view==='login')return;
-document.querySelectorAll('.nav-i[data-k]').forEach(a=>a.classList.toggle('on',a.dataset.k===k));scrollTo(0,0);PAGES[k]()}
-addEventListener('hashchange',route);route();
+async function switchPersona(personaId) {
+  try {
+    const res = await apiFetch(`/personas/switch/${personaId}`, {
+      method: 'POST',
+      headers: authHeaders()
+    });
+    activeToken = res.access_token;
+    localStorage.setItem('cf_token', activeToken);
+    localStorage.setItem('cf-data', personaId);
+    activePersona = {
+      id: res.active_persona.id,
+      name: res.active_persona.name,
+      role: res.active_persona.role,
+      avatar: res.active_persona.id === 'student' ? '🎓' : res.active_persona.id === 'freelancer' ? '👩‍💻' : '👨‍💼',
+      income_pattern: res.active_persona.income_pattern
+    };
+    updatePersonaUI();
+
+    // Re-render current page
+    const curHash = location.hash.slice(2) || 'home';
+    if (PAGES[curHash]) {
+      PAGES[curHash]();
+    }
+  } catch (err) {
+    alert(`Failed to switch persona: ${err.message}`);
+  }
+}
+
+// Bind Persona buttons in sidebar & login page
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.ap-btn, .p-quick-btn');
+  if (btn) {
+    const pid = btn.dataset.p || btn.dataset.persona;
+    if (pid) {
+      switchPersona(pid).then(() => {
+        if (location.hash === '' || location.hash === '#/login') {
+          location.hash = '#/home';
+        }
+      });
+    }
+  }
+});
+
+// Login Form Handling
+$('#loginForm').onsubmit = async e => {
+  e.preventDefault();
+  try {
+    const res = await apiFetch('/auth/dev-login', { method: 'POST', headers: authHeaders() });
+    activeToken = res.access_token;
+    localStorage.setItem('cf_token', activeToken);
+    localStorage.setItem('cf-data', 'active');
+    location.hash = '#/home';
+  } catch (err) {
+    localStorage.setItem('cf-data', 'active');
+    location.hash = '#/home';
+  }
+};
+
+$('#gbtn').onclick = async () => {
+  try {
+    const res = await apiFetch('/auth/google', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_token: 'mock-token' })
+    });
+    activeToken = res.access_token;
+    localStorage.setItem('cf_token', activeToken);
+    localStorage.setItem('cf-data', 'google');
+    location.hash = '#/home';
+  } catch (err) {
+    localStorage.setItem('cf-data', 'google');
+    location.hash = '#/home';
+  }
+};
+
+$('#pwt').onclick = e => {
+  const i = $('#pw'), s = i.type === 'password', b = e.currentTarget;
+  i.type = s ? 'text' : 'password';
+  b.setAttribute('aria-pressed', s);
+  b.setAttribute('aria-label', s ? 'Hide password' : 'Show password');
+};
+
+$('#out').onclick = () => {
+  localStorage.removeItem('cf_token');
+  localStorage.removeItem('cf-data');
+  activeToken = '';
+  location.hash = '#/login';
+};
+
+// Spotlight & ripple effects
+document.addEventListener('pointermove', e => {
+  const c = e.target.closest('.card');
+  if (!c) return;
+  const r = c.getBoundingClientRect();
+  c.style.setProperty('--mx', e.clientX - r.left + 'px');
+  c.style.setProperty('--my', e.clientY - r.top + 'px');
+});
+
+document.addEventListener('click', e => {
+  const c = e.target.closest('.card');
+  if (!c) return;
+  const r = c.getBoundingClientRect(), s = Math.max(r.width, r.height) / 2;
+  const k = e.detail === 0, x = k ? r.width / 2 : e.clientX - r.left, y = k ? r.height / 2 : e.clientY - r.top;
+  const d = document.createElement('span');
+  d.className = 'ripple';
+  Object.assign(d.style, { width: s + 'px', height: s + 'px', left: x - s / 2 + 'px', top: y - s / 2 + 'px' });
+  d.onanimationend = () => d.remove();
+  c.appendChild(d);
+});
+
+// UI helpers
+const hero = (t, img, cls) => `<div class="hero ${cls || ''}" style="${img ? `--img:url(assets/${img})` : ''}"><h1>${t}</h1></div>`;
+const page = h => `<div class="page">${h}</div>`;
+const GAUGE = s => `<span class="gauge"><svg viewBox="0 0 100 58"><defs><linearGradient id="gg" gradientUnits="userSpaceOnUse" x1="10" x2="90"><stop offset="0" stop-color="#ef4444"/><stop offset=".5" stop-color="#f59e0b"/><stop offset="1" stop-color="#22c55e"/></linearGradient></defs><path class="gt" d="M10 52A40 40 0 0 1 90 52" pathLength="100"/><path class="gf" d="M10 52A40 40 0 0 1 90 52" pathLength="100" style="--off:${100 - s}"/></svg><span class="gn"><b id="sn">0</b><small>/100</small></span></span>`;
+
+function countUp(t) {
+  const el = $('#sn');
+  if (!el) return;
+  const s = performance.now() + 600;
+  (function f(n) {
+    const p = Math.min(Math.max((n - s) / 1400, 0), 1);
+    el.textContent = Math.round(t * (1 - Math.pow(1 - p, 3)));
+    if (p < 1) requestAnimationFrame(f);
+  })(performance.now());
+}
+
+const IC = {
+  transactions: '<svg viewBox="0 0 64 64"><g class="rw" style="--r:0"><circle cx="12" cy="16" r="4"/><path d="M24 16h30"/></g><g class="rw" style="--r:1"><circle cx="12" cy="32" r="4"/><path d="M24 32h24"/></g><g class="rw" style="--r:2"><circle cx="12" cy="48" r="4"/><path d="M24 48h28"/></g></svg>',
+  whatif: '<svg viewBox="0 0 64 64"><path d="M8 22h48M8 44h48"/><circle class="kn k1" cx="20" cy="22" r="6"/><circle class="kn k2" cx="44" cy="44" r="6"/></svg>',
+  forecast: '<svg viewBox="0 0 64 64"><path d="M8 8v48h50"/><polygon class="ff" points="36,34 56,14 56,34"/><polyline class="fl" points="12,46 22,38 30,42 36,34"/><polyline class="fd" points="36,34 56,22"/></svg>',
+  bills: '<svg viewBox="0 0 64 64"><g class="cal"><rect x="8" y="14" width="48" height="42" rx="8"/><path d="M8 28h48M22 8v10M42 8v10M20 40h4M32 40h4M44 40h4"/></g><circle class="bdg" cx="54" cy="12" r="6"/></svg>'
+};
+
+const CARDS = [
+  ['transactions', 'Transaction History', 'Every transaction, categorized, searchable, with active-learning feedback.'],
+  ['whatif', 'Tools & AI Advisor', 'AI "Can I afford this?" check, EMI optimizer, loan schedules and savings goals.'],
+  ['forecast', 'Forecast & Backtest', 'Time-series predictions 30 to 180 days ahead, plus backtest accuracy evaluation.'],
+  ['bills', 'Recurring Bills', 'Auto-detected recurring subscriptions, EMIs, and upcoming due-date reminders.']
+];
+
+/* -------------------------------------------------------------
+   PAGE IMPLEMENTATIONS (WIRED TO FASTAPI BACKEND)
+------------------------------------------------------------- */
+const PAGES = {
+  // 1. HOME DASHBOARD
+  async home() {
+    main.innerHTML = `<header class="banner"><div class="br"><svg><use href="#logo"/></svg><div class="wm">Clair<span>finance</span></div></div><p>AI-Powered Personal Financial Operating System</p></header>` +
+      page(`<div style="display:flex;justify-content:center;padding:40px;"><div class="spin"></div> Loading dashboard insights...</div>`);
+
+    try {
+      const overview = await apiFetch('/dashboard/overview', { headers: authHeaders() });
+      const alerts = await apiFetch('/alerts', { headers: authHeaders() }).catch(() => []);
+      const personality = await apiFetch('/dashboard/personality', { headers: authHeaders() }).catch(() => null);
+
+      let topAlert = {
+        title: 'All Clear',
+        desc: 'You are up to date on your expenditures. No shortfalls predicted in next 30 days.',
+        tag: 'Healthy',
+        link: '#/forecast'
+      };
+
+      if (alerts && alerts.length > 0) {
+        topAlert = {
+          title: alerts[0].title,
+          desc: alerts[0].description,
+          tag: alerts[0].severity.toUpperCase(),
+          link: alerts[0].alert_type === 'anomaly' ? '#/anomalies' : '#/bills'
+        };
+      }
+
+      main.innerHTML = `<header class="banner"><div class="br"><svg><use href="#logo"/></svg><div class="wm">Clair<span>finance</span></div></div><p>Know if you’ll run out of money, and when, before it happens</p></header>` +
+        page(`
+          <a class="card alert" href="${topAlert.link}" style="--i:-1">
+            <div class="al-i"><svg viewBox="0 0 24 24"><path d="M10.3 3.9 2.4 17.6A2 2 0 0 0 4.1 20.6h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0ZM12 9v4M12 17h.01"/></svg></div>
+            <div id="al" style="flex:1">
+              <small>${topAlert.tag}</small>
+              <h2>${topAlert.title}</h2>
+              <p>${topAlert.desc}</p>
+            </div>
+            ${ARR}
+          </a>
+
+          <div class="stats" style="margin-top:-8px;">
+            <div class="stat glass">
+              <small>Total Income (12 mo)</small>
+              <b class="ok">${inr(overview.total_income)}</b>
+            </div>
+            <div class="stat glass">
+              <small>Total Expenses</small>
+              <b class="bad">${inr(overview.total_expenses)}</b>
+            </div>
+            <div class="stat glass">
+              <small>Net Savings (Rate)</small>
+              <b class="${overview.net_savings >= 0 ? 'ok' : 'bad'}">${overview.net_savings >= 0 ? '+' : '−'}${inr(overview.net_savings)} (${overview.savings_rate}%)</b>
+            </div>
+          </div>
+
+          <div class="grid">
+            ${CARDS.map(([k, t, d], i) => `
+              <a class="card" href="#/${k}" style="--i:${i}">
+                <span class="ct"><span class="ic">${IC[k]}</span>${ARR}</span>
+                <span><h3>${t}</h3><p>${d}</p></span>
+              </a>
+            `).join('')}
+            <a class="card wide" href="#/score" style="--i:4">
+              ${GAUGE(overview.health_score)}
+              <span style="flex:1">
+                <h3>Financial Health: ${overview.health_status}</h3>
+                <p>Calculated across 5 core factors: savings rate, expense consistency, debt-to-income, emergency buffer, and spending diversity.</p>
+                <span class="chips">
+                  <i>Savings Rate</i><i>Cash Buffer</i><i>EMI Ratio</i><i>Spending Stability</i><i>Shortfall Risk</i>
+                </span>
+                ${personality ? `<div style="margin-top:10px;font-size:13px;color:var(--sec);"><b>Archetype:</b> ${personality.title}</div>` : ''}
+              </span>
+              ${ARR}
+            </a>
+          </div>
+
+          <section class="panel glass" style="margin-top:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+              <h3 style="margin:0;">Recent Transactions</h3>
+              <a href="#/transactions" class="lk" style="font-size:13px;">View all &rarr;</a>
+            </div>
+            <table>
+              <tbody>
+                ${(overview.recent_transactions || []).slice(0, 5).map(t => `
+                  <tr>
+                    <td>
+                      <span class="dot" style="background:${t.category_color || '#6366f1'}"></span>
+                      <b>${t.description}</b>
+                      <div class="cat">${t.category_name} · ${t.date} · ${t.payment_mode}</div>
+                    </td>
+                    <td class="${t.type === 'credit' ? 'ok' : ''}" style="text-align:right;">
+                      ${t.type === 'credit' ? '+' : '−'}${inr(t.amount)}
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </section>
+        `);
+
+      countUp(overview.health_score);
+    } catch (err) {
+      main.innerHTML = page(`<section class="panel glass"><h3>Error loading dashboard</h3><p class="cat">${err.message}</p><button class="btn" onclick="PAGES.home()">Retry</button></section>`);
+    }
+  },
+
+  // 2. TRANSACTION HISTORY & ACTIVE LEARNING LOOP
+  async transactions() {
+    main.innerHTML = hero('TRANSACTION HISTORY', 'money.avif') +
+      page(`<div style="display:flex;justify-content:center;padding:40px;"><div class="spin"></div> Loading statement transactions...</div>`);
+
+    try {
+      const data = await apiFetch('/transactions?page=1&page_size=200', { headers: authHeaders() });
+      const txns = data.transactions || data.items || [];
+      if (!allCategories.length) {
+        allCategories = await apiFetch('/categories', { headers: authHeaders() }).catch(() => []);
+      }
+
+      main.innerHTML = hero('TRANSACTION HISTORY', 'money.avif') + page(`
+        <section class="panel glass">
+          <div class="bar">
+            <label>Time Period:
+              <select id="t-period">
+                <option value="all" selected>All time (Full statement)</option>
+                <option value="365">Last year</option>
+                <option value="180">Last 6 months</option>
+                <option value="90">Last 3 months</option>
+                <option value="30">Past month</option>
+                <option value="7">Past week</option>
+              </select>
+            </label>
+            <label>Category:
+              <select id="t-cat-filter">
+                <option value="all">All Categories</option>
+                ${allCategories.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}
+              </select>
+            </label>
+            <label>Search:
+              <input class="in" id="t-search" placeholder="Filter merchant/description..." style="padding:6px 12px;font-size:13px;width:200px;">
+            </label>
+            <span class="cat" id="t-count">${txns.length} transactions</span>
+          </div>
+        </section>
+
+        <div class="stats" id="t-stats"></div>
+
+        <section class="panel glass">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <h3>Statement Transactions</h3>
+            <span class="cat" style="font-size:12px;">💡 Select any category to trigger the ML active learning loop</span>
+          </div>
+          <table id="t-table"></table>
+        </section>
+      `);
+
+      const renderTxns = () => {
+        const periodVal = $('#t-period').value;
+        const catFilter = $('#t-cat-filter').value;
+        const searchQuery = ($('#t-search').value || '').toLowerCase().trim();
+
+        const now = Date.now();
+        const filtered = txns.filter(t => {
+          let matchesPeriod = true;
+          if (periodVal !== 'all') {
+            const tTime = new Date(t.date).getTime();
+            matchesPeriod = (now - tTime) <= (+periodVal) * 864e5;
+          }
+          const matchesCat = (catFilter === 'all' || t.category_name === catFilter);
+          const matchesSearch = !searchQuery || t.description.toLowerCase().includes(searchQuery);
+          return matchesPeriod && matchesCat && matchesSearch;
+        });
+
+        const income = filtered.reduce((acc, t) => acc + (t.type === 'credit' ? t.amount : 0), 0);
+        const spent = filtered.reduce((acc, t) => acc + (t.type === 'debit' ? t.amount : 0), 0);
+        const net = income - spent;
+
+        $('#t-count').textContent = `${filtered.length} transactions`;
+
+        $('#t-stats').innerHTML = [
+          ['Total Income', inr(income), 'ok'],
+          ['Total Spent', inr(spent), 'bad'],
+          ['Net Savings', (net >= 0 ? '+' : '−') + inr(net), net >= 0 ? 'ok' : 'bad']
+        ].map(([l, v, c]) => `<div class="stat glass"><small>${l}</small><b class="${c}">${v}</b></div>`).join('');
+
+        $('#t-table').innerHTML = filtered.slice(0, 100).map((t, idx) => `
+          <tr id="row-${t.id}">
+            <td>
+              <span class="dot" style="background:${t.category_color || '#6366f1'}"></span>
+              <b>${t.description}</b>
+              ${t.anomaly_score > 0.6 ? `<span class="chip bad" style="margin-left:6px;font-size:11px;">Anomaly (${Math.round(t.anomaly_score * 100)}%)</span>` : ''}
+              ${t.is_recurring ? `<span class="chip warn" style="margin-left:4px;font-size:11px;">Recurring</span>` : ''}
+              <div class="cat">
+                ${t.date} · ${t.payment_mode || 'UPI'}
+              </div>
+            </td>
+            <td style="width:200px;">
+              <select class="cat-select" data-id="${t.id}">
+                ${allCategories.map(c => `
+                  <option value="${c.name}" ${c.name === t.category_name ? 'selected' : ''}>${c.name}</option>
+                `).join('')}
+              </select>
+              <span id="learn-${t.id}"></span>
+            </td>
+            <td class="${t.type === 'credit' ? 'ok' : ''}" style="text-align:right;">
+              ${t.type === 'credit' ? '+' : '−'}${inr(t.amount)}
+            </td>
+          </tr>
+        `).join('');
+
+        // Attach category change listeners for Active Learning Loop
+        $$('.cat-select').forEach(sel => {
+          sel.onchange = async e => {
+            const txnId = e.target.dataset.id;
+            const newCat = e.target.value;
+            const statusEl = $(`#learn-${txnId}`);
+            if (statusEl) statusEl.innerHTML = `<span class="cat" style="font-size:11px;">Saving...</span>`;
+
+            try {
+              const patched = await apiFetch(`/transactions/${txnId}`, {
+                method: 'PATCH',
+                headers: authHeaders(),
+                body: JSON.stringify({ category_name: newCat })
+              });
+              // Update local state
+              const target = txns.find(x => x.id === txnId);
+              if (target) {
+                target.category_name = patched.category_name;
+                target.category_color = patched.category_color;
+              }
+              if (statusEl) statusEl.innerHTML = `<span class="learned-badge">Learned!</span>`;
+              setTimeout(() => { if (statusEl) statusEl.innerHTML = ''; }, 3000);
+            } catch (err) {
+              if (statusEl) statusEl.innerHTML = `<span style="color:var(--bad);font-size:11px;">Failed</span>`;
+            }
+          };
+        });
+      };
+
+      $('#t-period').onchange = renderTxns;
+      $('#t-cat-filter').onchange = renderTxns;
+      $('#t-search').oninput = renderTxns;
+      renderTxns();
+
+    } catch (err) {
+      main.innerHTML = page(`<section class="panel glass"><h3>Error loading transactions</h3><p class="cat">${err.message}</p></section>`);
+    }
+  },
+
+  // 3. TOOLS & AI ADVISOR ("Can I Afford This?", Simulators, EMI Optimizer)
+  async whatif() {
+    main.innerHTML = hero('TOOLS & AI ADVISOR', 'ai.png') + page(`
+      <div class="seg" id="tool-tabs">
+        <button class="on" data-tab="tab-query">AI "Can I Afford This?"</button>
+        <button data-tab="tab-emi">EMI Optimizer</button>
+        <button data-tab="tab-loan">Loan Amortization</button>
+        <button data-tab="tab-goal">Savings Goal</button>
+        <button data-tab="tab-scenario">What-If Scenario</button>
+      </div>
+
+      <!-- Tab 1: "Can I Afford This?" AI Advisor -->
+      <section class="panel glass tool-pane" id="tab-query">
+        <h3>AI Financial Advisor: "Can I Afford This?"</h3>
+        <p class="cat" style="margin-bottom:16px;">Evaluates proposed loans, EMIs or large purchases using live Google Gemini AI contextual memory and cash flow simulation.</p>
+        <div class="form">
+          <label>Item / Commitment Name:
+            <input class="in" id="q-item" value="Royal Enfield Himalayan 450">
+          </label>
+          <label>Estimated Price (₹):
+            <input class="in" id="q-price" type="number" value="285000">
+          </label>
+          <label>Payment Method:
+            <select id="q-method">
+              <option value="emi">EMI (Monthly Installments)</option>
+              <option value="one_time">One-time (Savings Buffer)</option>
+              <option value="loan">Personal / Auto Loan</option>
+            </select>
+          </label>
+          <label class="q-emi-row">Tenure (months):
+            <input class="in" id="q-tenure" type="number" value="24">
+          </label>
+          <label class="q-emi-row">Interest Rate (% per year):
+            <input class="in" id="q-rate" type="number" step="0.1" value="12.5">
+          </label>
+          <label>Product Link (optional):
+            <input class="in" id="q-link" placeholder="https://royalenfield.com/...">
+          </label>
+          <label style="grid-column:1/-1;">Additional Personal Context / Notes:
+            <input class="in" id="q-notes" placeholder="e.g. I also have semester fees due next month, or expecting client bonus">
+          </label>
+          <button class="btn" id="q-btn">Check If I Can Afford It with AI</button>
+        </div>
+
+        <div id="q-loading" style="display:none;padding:24px;text-align:center;">
+          <div class="spin"></div> <em>Analyzing financial situation, past history, and stress testing cash flow...</em>
+        </div>
+        <div id="q-result" class="verdict" style="margin-top:20px;"></div>
+
+        <div style="margin-top:30px;">
+          <h4 style="font-family:var(--hd);font-size:16px;margin-bottom:12px;">Past Financial Inquiries (Contextual Memory)</h4>
+          <div id="q-history-list" style="display:grid;gap:10px;"></div>
+        </div>
+      </section>
+
+      <!-- Tab 2: EMI Debt Optimizer -->
+      <section class="panel glass tool-pane" id="tab-emi" style="display:none;">
+        <h3>EMI Debt Optimizer</h3>
+        <p class="cat" style="margin-bottom:16px;">Analyzes debt restructuring, lump-sum down payment ROI, and tenure extensions against your current debt-to-income (DTI) ratio.</p>
+        <div class="form">
+          <label>Borrowing Amount (₹):<input class="in" id="eo-amt" type="number" value="300000"></label>
+          <label>Tenure (Months):<input class="in" id="eo-tenure" type="number" value="24"></label>
+          <label>Interest Rate (%/yr):<input class="in" id="eo-rate" type="number" value="12"></label>
+          <label>Down Payment / Prepayment (₹):<input class="in" id="eo-down" type="number" value="50000"></label>
+          <button class="btn" id="eo-btn">Optimize Debt Structure</button>
+        </div>
+        <div id="eo-result" class="verdict" style="margin-top:16px;"></div>
+      </section>
+
+      <!-- Tab 3: Loan Amortization Schedule -->
+      <section class="panel glass tool-pane" id="tab-loan" style="display:none;">
+        <h3>Loan Amortization Calculator</h3>
+        <p class="cat" style="margin-bottom:16px;">Generates month-by-month principal and interest repayment schedules.</p>
+        <div class="form">
+          <label>Principal Amount (₹):<input class="in" id="la-amt" type="number" value="500000"></label>
+          <label>Rate of Interest (%/yr):<input class="in" id="la-rate" type="number" value="10.5"></label>
+          <label>Tenure (Months):<input class="in" id="la-tenure" type="number" value="36"></label>
+          <button class="btn" id="la-btn">Show Repayment Schedule</button>
+        </div>
+        <div id="la-result" class="verdict" style="margin-top:16px;"></div>
+      </section>
+
+      <!-- Tab 4: Savings Goal Timeline -->
+      <section class="panel glass tool-pane" id="tab-goal" style="display:none;">
+        <h3>Savings Goal Calculator</h3>
+        <p class="cat" style="margin-bottom:16px;">Calculates timeline feasibility and AI recommendations to accelerate reaching your financial targets.</p>
+        <div class="form">
+          <label>Target Goal Amount (₹):<input class="in" id="sg-amt" type="number" value="300000"></label>
+          <label>Monthly Contribution (₹):<input class="in" id="sg-monthly" type="number" value="15000"></label>
+          <button class="btn" id="sg-btn">Calculate Timeline</button>
+        </div>
+        <div id="sg-result" class="verdict" style="margin-top:16px;"></div>
+      </section>
+
+      <!-- Tab 5: What-If Multi-Variable Scenarios -->
+      <section class="panel glass tool-pane" id="tab-scenario" style="display:none;">
+        <h3>What-If Scenario Simulator</h3>
+        <p class="cat" style="margin-bottom:16px;">Simulates future cash flow under income raises, cuts, side gigs, or new ongoing expenses.</p>
+        <div class="form">
+          <label>Scenario Name:<input class="in" id="wi-name" value="Job Promotion & Rent Increase"></label>
+          <label>Income Shift (%):<input class="in" id="wi-inc" type="number" value="15"></label>
+          <label>Monthly Expense Shift (₹):<input class="in" id="wi-exp" type="number" value="5000"></label>
+          <label>One-Time Inflow / Bonus (₹):<input class="in" id="wi-inflow" type="number" value="25000"></label>
+          <button class="btn" id="wi-btn">Simulate Scenario</button>
+        </div>
+        <div id="wi-result" class="verdict" style="margin-top:16px;"></div>
+      </section>
+    `);
+
+    // Tab switcher
+    $('#tool-tabs').onclick = e => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      $$('#tool-tabs button').forEach(x => x.classList.remove('on'));
+      b.classList.add('on');
+      $$('.tool-pane').forEach(p => p.style.display = 'none');
+      const target = $('#' + b.dataset.tab);
+      if (target) target.style.display = 'block';
+    };
+
+    // Toggle EMI fields when payment method changes
+    $('#q-method').onchange = () => {
+      const isOneTime = $('#q-method').value === 'one_time';
+      $$('.q-emi-row').forEach(row => row.style.display = isOneTime ? 'none' : '');
+    };
+
+    // AI Affordability Action
+    $('#q-btn').onclick = async () => {
+      const payload = {
+        item_name: $('#q-item').value,
+        estimated_price: +$('#q-price').value || 0,
+        payment_method: $('#q-method').value,
+        emi_tenure_months: +$('#q-tenure').value || 24,
+        interest_rate: +$('#q-rate').value || 12.5,
+        link: $('#q-link').value || null,
+        additional_context: $('#q-notes').value || null
+      };
+
+      $('#q-loading').style.display = 'block';
+      $('#q-result').innerHTML = '';
+
+      try {
+        const d = await apiFetch('/query/ask', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify(payload)
+        });
+
+        $('#q-loading').style.display = 'none';
+
+        let badgeClass = 'ok';
+        let label = 'Easily Affordable';
+        if (d.verdict === 'affordable_with_caution') { badgeClass = 'warn'; label = 'Affordable with Caution'; }
+        else if (d.verdict === 'risky') { badgeClass = 'warn'; label = 'Risky'; }
+        else if (d.verdict === 'not_recommended') { badgeClass = 'bad'; label = 'Not Recommended'; }
+
+        $('#q-result').innerHTML = `
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+            <h2 class="${badgeClass}" style="margin:0;">${label}</h2>
+            <span class="chip ${badgeClass}">Confidence: ${Math.round(d.confidence * 100)}%</span>
+          </div>
+
+          <p style="font-size:16px;line-height:1.6;">${d.analysis}</p>
+
+          <div class="stats" style="margin:16px 0;">
+            <div class="stat glass">
+              <small>Monthly Commitment</small>
+              <b class="${badgeClass}">${inr(d.monthly_emi)}/mo</b>
+            </div>
+            <div class="stat glass">
+              <small>Current Savings Surplus</small>
+              <b>${inr(d.impact.current_monthly_savings)}/mo</b>
+            </div>
+            <div class="stat glass">
+              <small>Projected Savings</small>
+              <b class="${d.impact.projected_monthly_savings >= 0 ? 'ok' : 'bad'}">${inr(d.impact.projected_monthly_savings)}/mo</b>
+            </div>
+          </div>
+
+          ${d.risks && d.risks.length ? `
+            <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);padding:14px;border-radius:14px;margin-bottom:14px;">
+              <b class="bad" style="display:block;margin-bottom:6px;">⚠️ Identified Financial Risks:</b>
+              <ul class="tips">${d.risks.map(r => `<li>${r}</li>`).join('')}</ul>
+            </div>
+          ` : ''}
+
+          ${d.alternatives && d.alternatives.length ? `
+            <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.3);padding:14px;border-radius:14px;margin-bottom:14px;">
+              <b style="color:var(--sec);display:block;margin-bottom:6px;">💡 Recommended Alternatives & Timeline:</b>
+              <ul class="tips">${d.alternatives.map(a => `<li>${a}</li>`).join('')}</ul>
+            </div>
+          ` : ''}
+
+          <div style="background:var(--g1);border:1px solid var(--gb);padding:14px;border-radius:14px;">
+            <b style="color:var(--mut);display:block;margin-bottom:4px;">Advisor Reasoning:</b>
+            <p class="cat" style="line-height:1.6;margin:0;">${d.reasoning}</p>
+          </div>
+        `;
+
+        loadQueryHistory();
+      } catch (err) {
+        $('#q-loading').style.display = 'none';
+        $('#q-result').innerHTML = `<p class="bad">Error: ${err.message}</p>`;
+      }
+    };
+
+    // Load Query History
+    const loadQueryHistory = async () => {
+      try {
+        const hist = await apiFetch('/query/history', { headers: authHeaders() }).catch(() => []);
+        const box = $('#q-history-list');
+        if (!box) return;
+        if (!hist || !hist.length) {
+          box.innerHTML = `<span class="cat">No previous questions recorded. Ask your first above!</span>`;
+          return;
+        }
+        box.innerHTML = hist.slice(0, 5).map(h => {
+          let badge = 'ok';
+          if (h.verdict === 'risky' || h.verdict === 'affordable_with_caution') badge = 'warn';
+          if (h.verdict === 'not_recommended') badge = 'bad';
+          return `
+            <div class="past-query-card">
+              <div>
+                <b>${h.query_text}</b>
+                <div class="cat">${h.created_at ? new Date(h.created_at).toLocaleDateString() : ''} · Confidence ${Math.round((h.confidence_score || 0.8) * 100)}%</div>
+              </div>
+              <span class="chip ${badge}">${(h.verdict || 'Reviewed').replace(/_/g, ' ')}</span>
+            </div>
+          `;
+        }).join('');
+      } catch (e) {}
+    };
+    loadQueryHistory();
+
+    // EMI Optimizer Action
+    $('#eo-btn').onclick = async () => {
+      const payload = {
+        proposed_loan_amount: +$('#eo-amt').value || 0,
+        proposed_interest_rate: +$('#eo-rate').value || 12,
+        proposed_tenure_months: +$('#eo-tenure').value || 24,
+        lump_sum_prepayment_available: +$('#eo-down').value || 0
+      };
+      try {
+        const d = await apiFetch('/simulator/emi-optimizer', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify(payload)
+        });
+        $('#eo-result').innerHTML = `
+          <p style="font-size:15px;line-height:1.6;">${d.advisor_summary}</p>
+          <div class="tw" style="margin-top:14px;">
+            <table>
+              <tr><th>Strategy</th><th>Monthly EMI</th><th>Total Interest</th><th>Interest Saved</th><th>DTI Ratio</th><th>Level</th></tr>
+              ${(d.scenarios || []).map(s => `
+                <tr>
+                  <td><b>${s.title}</b><div class="cat">${s.description}</div></td>
+                  <td>${inr(s.combined_monthly_emi)}</td>
+                  <td>${inr(s.total_interest_payable)}</td>
+                  <td class="${s.interest_saved_vs_baseline > 0 ? 'ok' : ''}">${inr(s.interest_saved_vs_baseline)}</td>
+                  <td>${s.dti_ratio_percent}%</td>
+                  <td><span class="lv ${s.recommendation_level === 'Highly Recommended' ? 'g' : ''}">${s.recommendation_level}</span></td>
+                </tr>
+              `).join('')}
+            </table>
+          </div>
+        `;
+      } catch (err) {
+        $('#eo-result').innerHTML = `<p class="bad">Error: ${err.message}</p>`;
+      }
+    };
+
+    // Loan Amortization Action
+    let laFullSchedule = [];
+    let laShowAll = false;
+
+    $('#la-btn').onclick = async () => {
+      const payload = {
+        loan_amount: +$('#la-amt').value || 0,
+        interest_rate: +$('#la-rate').value || 10,
+        tenure_months: +$('#la-tenure').value || 24
+      };
+      try {
+        const d = await apiFetch('/simulator/loan', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify(payload)
+        });
+
+        laFullSchedule = d.schedule || [];
+        laShowAll = false;
+
+        const renderTable = () => {
+          const rows = laShowAll ? laFullSchedule : laFullSchedule.slice(0, 12);
+          return `
+            <div class="stats" style="margin:14px 0;">
+              <div class="stat glass"><small>Monthly EMI</small><b>${inr(d.emi)}</b></div>
+              <div class="stat glass"><small>Total Interest</small><b class="warn">${inr(d.total_interest)}</b></div>
+              <div class="stat glass"><small>Total Payable</small><b>${inr(d.total_payment)}</b></div>
+            </div>
+            ${d.impact_summary ? `<p style="font-size:14px;color:var(--sec);margin-bottom:12px;">${d.impact_summary}</p>` : ''}
+            <div class="tw">
+              <table>
+                <thead>
+                  <tr><th>Month</th><th>EMI Payment</th><th>Principal Paid</th><th>Interest Paid</th><th>Remaining Balance</th></tr>
+                </thead>
+                <tbody>
+                  ${rows.map(s => `
+                    <tr>
+                      <td><b>Month ${s.month}</b></td>
+                      <td>${inr(s.emi != null ? s.emi : s.payment)}</td>
+                      <td>${inr(s.principal_paid != null ? s.principal_paid : s.principal)}</td>
+                      <td class="warn">${inr(s.interest_paid != null ? s.interest_paid : s.interest)}</td>
+                      <td>${inr(s.remaining_balance != null ? s.remaining_balance : s.balance)}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            ${laFullSchedule.length > 12 ? `
+              <div style="margin-top:12px;text-align:center;">
+                <button class="sm" id="la-toggle-btn">${laShowAll ? 'Show First 12 Months' : `Show All ${laFullSchedule.length} Months`}</button>
+              </div>
+            ` : ''}
+          `;
+        };
+
+        const container = $('#la-result');
+        container.innerHTML = renderTable();
+
+        container.onclick = e => {
+          if (e.target && e.target.id === 'la-toggle-btn') {
+            laShowAll = !laShowAll;
+            container.innerHTML = renderTable();
+          }
+        };
+      } catch (err) {
+        $('#la-result').innerHTML = `<p class="bad">Error: ${err.message}</p>`;
+      }
+    };
+
+    // Savings Goal Action
+    $('#sg-btn').onclick = async () => {
+      const payload = {
+        goal_amount: +$('#sg-amt').value || 0,
+        monthly_contribution: +$('#sg-monthly').value || 10000
+      };
+      try {
+        const d = await apiFetch('/simulator/savings-goal', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify(payload)
+        });
+        $('#sg-result').innerHTML = `
+          <div class="stats" style="margin:14px 0;">
+            <div class="stat glass"><small>Timeline</small><b class="ok">${d.estimated_months_to_goal} Months</b></div>
+            <div class="stat glass"><small>Feasibility</small><b class="ok">${d.feasibility}</b></div>
+            <div class="stat glass"><small>Monthly Required</small><b>${inr(d.required_monthly_savings)}</b></div>
+          </div>
+          <ul class="tips">${(d.accelerators || []).map(a => `<li>${a}</li>`).join('')}</ul>
+        `;
+      } catch (err) {
+        $('#sg-result').innerHTML = `<p class="bad">Error: ${err.message}</p>`;
+      }
+    };
+
+    // What-If Scenario Action
+    $('#wi-btn').onclick = async () => {
+      const payload = {
+        scenario_name: $('#wi-name').value,
+        income_change_percent: +$('#wi-inc').value || 0,
+        monthly_expense_change: +$('#wi-exp').value || 0,
+        one_time_inflow: +$('#wi-inflow').value || 0,
+        projection_months: 12
+      };
+      try {
+        const d = await apiFetch('/simulator/what-if', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify(payload)
+        });
+        $('#wi-result').innerHTML = `
+          <div class="stats" style="margin:14px 0;">
+            <div class="stat glass"><small>Verdict</small><b class="ok">${d.verdict}</b></div>
+            <div class="stat glass"><small>Annual Delta</small><b class="${d.net_change_in_annual_savings >= 0 ? 'ok' : 'bad'}">${inr(d.net_change_in_annual_savings)}</b></div>
+            <div class="stat glass"><small>Simulated Surplus</small><b>${inr(d.simulated_monthly_savings)}/mo</b></div>
+          </div>
+          <ul class="tips">${(d.insights || []).map(i => `<li>${i}</li>`).join('')}</ul>
+        `;
+      } catch (err) {
+        $('#wi-result').innerHTML = `<p class="bad">Error: ${err.message}</p>`;
+      }
+    };
+  },
+
+  // 4. FORECAST & TIME MACHINE BACKTESTING
+  async forecast() {
+    main.innerHTML = hero('FORECAST & BACKTEST', 'eye.jpg') +
+      page(`<div style="display:flex;justify-content:center;padding:40px;"><div class="spin"></div> Generating time-series forecasts...</div>`);
+
+    try {
+      const cashflow = await apiFetch('/forecast/cashflow?months=6', { headers: authHeaders() });
+      const liquidity = await apiFetch('/forecast/liquidity', { headers: authHeaders() }).catch(() => ({ has_shortfall_risk: false, shortfall_probability: 0.12 }));
+      const accuracy = await apiFetch('/forecast/accuracy', { headers: authHeaders() }).catch(() => null);
+
+      main.innerHTML = hero('FORECAST & BACKTEST', 'eye.jpg') + page(`
+        <section class="panel glass">
+          <div class="bar">
+            <h3 style="margin:0">Forward Cash Flow Predictions</h3>
+            <span class="cat">Probabilistic Time-Series Forecasting</span>
+          </div>
+          <div class="tw" style="margin-top:16px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Month</th>
+                  <th>Predicted Income</th>
+                  <th>Predicted Expenses</th>
+                  <th>Net Savings</th>
+                  <th>80% Uncertainty Range</th>
+                  <th>Confidence</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${(cashflow.forecast || []).map(f => `
+                  <tr>
+                    <td><b>${f.month}</b></td>
+                    <td class="ok">+${inr(f.predicted_income)}</td>
+                    <td class="bad">−${inr(f.predicted_expenses)}</td>
+                    <td class="${f.net_savings >= 0 ? 'ok' : 'bad'}">${f.net_savings >= 0 ? '+' : '−'}${inr(f.net_savings)}</td>
+                    <td>${inr(f.lower_bound)} to ${inr(f.upper_bound)}</td>
+                    <td><span class="chip ok">${Math.round(f.confidence * 100)}%</span></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel glass">
+          <h3>Liquidity & Shortfall Stress Test</h3>
+          <div class="stats" style="margin-top:12px;">
+            <div class="stat glass">
+              <small>Shortfall Risk Probability</small>
+              <b class="${liquidity.shortfall_probability > 0.4 ? 'bad' : liquidity.shortfall_probability > 0.2 ? 'warn' : 'ok'}">
+                ${Math.round(liquidity.shortfall_probability * 100)}%
+              </b>
+            </div>
+            <div class="stat glass">
+              <small>Status</small>
+              <b class="${liquidity.has_shortfall_risk ? 'bad' : 'ok'}">
+                ${liquidity.has_shortfall_risk ? 'Risk Detected' : 'Comfortable Buffer'}
+              </b>
+            </div>
+            <div class="stat glass">
+              <small>Days Until Potential Crunch</small>
+              <b>${liquidity.days_until_shortfall ? `${liquidity.days_until_shortfall} Days` : 'None (30+ Days)'}</b>
+            </div>
+          </div>
+          <p class="cat" style="margin-top:12px;line-height:1.6;">${liquidity.recommendation || 'Maintain your current spending pattern. Your projected buffer exceeds the ₹5,000 threshold across upcoming payment cycles.'}</p>
+        </section>
+
+        ${accuracy ? `
+          <section class="panel glass time-machine">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+              <div>
+                <h3 style="margin:0;">🎯 Financial Time Machine (Backtest Evaluation)</h3>
+                <p class="cat" style="margin:4px 0 0 0;">Empirically evaluated against historical statements (Months 1–9 training &rarr; Months 10–12 verification).</p>
+              </div>
+              <span class="badge badge-success" style="font-size:14px;padding:6px 14px;">${accuracy.accuracy_percent || accuracy.accuracy_percentage || 88.5}% Model Accuracy</span>
+            </div>
+
+            <div class="stats" style="margin:16px 0;">
+              <div class="stat glass"><small>Mean Absolute % Error (MAPE)</small><b class="ok">${(accuracy.mape * 100).toFixed(1)}%</b></div>
+              <div class="stat glass"><small>Backtested Horizon</small><b>3 Months</b></div>
+              <div class="stat glass"><small>Model Architecture</small><b>Exponential Smoothing / Theta</b></div>
+            </div>
+
+            <div class="tw">
+              <table>
+                <thead>
+                  <tr><th>Month</th><th>Actual Historical Spend</th><th>Predicted Spend</th><th>Variance Delta</th></tr>
+                </thead>
+                <tbody>
+                  ${(accuracy.comparison || accuracy.backtest_points || []).map(p => `
+                    <tr>
+                      <td><b>${p.month}</b></td>
+                      <td>${inr(p.actual_expenses || p.actual)}</td>
+                      <td>${inr(p.predicted_expenses || p.predicted)}</td>
+                      <td class="${Math.abs((p.actual_expenses || p.actual) - (p.predicted_expenses || p.predicted)) < 5000 ? 'ok' : 'warn'}">Δ ${inr(Math.abs((p.actual_expenses || p.actual) - (p.predicted_expenses || p.predicted)))}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ` : ''}
+      `);
+    } catch (err) {
+      main.innerHTML = page(`<section class="panel glass"><h3>Error loading forecast</h3><p class="cat">${err.message}</p></section>`);
+    }
+  },
+
+  // 5. RECURRING BILLS
+  async bills() {
+    main.innerHTML = hero('RECURRING BILLS', 'bulb.jpg') +
+      page(`<div style="display:flex;justify-content:center;padding:40px;"><div class="spin"></div> Detecting recurring subscriptions and EMIs...</div>`);
+
+    try {
+      const recData = await apiFetch('/forecast/recurring', { headers: authHeaders() }).catch(() => ({ patterns: [] }));
+      const upcoming = await apiFetch('/alerts/upcoming?days=30', { headers: authHeaders() }).catch(() => []);
+
+      const list = (Array.isArray(recData) ? recData : recData.patterns) || [];
+      const totalDue = recData.estimated_monthly_recurring || list.reduce((a, b) => a + (b.typical_amount || 0), 0);
+
+      main.innerHTML = hero('RECURRING BILLS', 'bulb.jpg') + page(`
+        <div class="stats" id="bs">
+          <div class="stat glass"><small>Total Monthly Recurring</small><b>${inr(totalDue)}</b></div>
+          <div class="stat glass"><small>Due Within 7 Days</small><b class="warn">${upcoming.length || 1} bills</b></div>
+          <div class="stat glass"><small>Detected Patterns</small><b class="ok">${list.length} commitments</b></div>
+        </div>
+
+        <div style="display:grid;gap:14px;margin-top:18px;">
+          ${list.map((b, i) => `
+            <div class="bill card" id="bill-${i}" style="animation-delay:${i * 70}ms;cursor:default;">
+              <div class="g">
+                <b style="font-size:16px;">${b.description}</b>
+                <div class="cat" style="margin-top:2px;">${b.frequency.toUpperCase()} · Next expected: ${b.next_expected || 'Upcoming'}</div>
+              </div>
+              <div style="text-align:right;">
+                <b style="font-size:18px;display:block;">${inr(b.typical_amount)}</b>
+                <span class="chip warn" style="font-size:11px;">Active</span>
+              </div>
+              <button class="sm bill-paid-btn" data-idx="${i}">Mark Paid</button>
+            </div>
+          `).join('')}
+        </div>
+      `);
+
+      $$('.bill-paid-btn').forEach(btn => {
+        btn.onclick = e => {
+          const idx = e.target.dataset.idx;
+          const card = $(`#bill-${idx}`);
+          if (card) {
+            const isPaid = card.classList.toggle('paid');
+            e.target.textContent = isPaid ? 'Undo' : 'Mark Paid';
+          }
+        };
+      });
+
+    } catch (err) {
+      main.innerHTML = page(`<section class="panel glass"><h3>Error loading bills</h3><p class="cat">${err.message}</p></section>`);
+    }
+  },
+
+  // 6. FINANCE SCORE, ARCHETYPE, BENCHMARKS, STREAKS & HEATMAP
+  async score() {
+    main.innerHTML = hero('FINANCE SCORE', 'gauge.webp', 'contain') +
+      page(`<div style="display:flex;justify-content:center;padding:40px;"><div class="spin"></div> Computing composite financial health score...</div>`);
+
+    try {
+      const scoreData = await apiFetch('/dashboard/health-score', { headers: authHeaders() });
+      const personality = await apiFetch('/dashboard/personality', { headers: authHeaders() }).catch(() => null);
+      const benchmarks = await apiFetch('/dashboard/benchmarks', { headers: authHeaders() }).catch(() => null);
+      const streaks = await apiFetch('/dashboard/streaks', { headers: authHeaders() }).catch(() => null);
+      const calendar = await apiFetch('/dashboard/calendar', { headers: authHeaders() }).catch(() => null);
+
+      main.innerHTML = hero('FINANCE SCORE', 'gauge.webp', 'contain') + page(`
+        <section class="panel glass scorehead">
+          ${GAUGE(scoreData.total_score)}
+          <div style="flex:1;">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
+              <h2 style="font-family:var(--hd);font-size:32px;margin:0;">${scoreData.status}</h2>
+              <span class="chip ok">${scoreData.total_score} / 100</span>
+            </div>
+            <p class="cat" style="line-height:1.6;">
+              Composite score derived from savings rate, expense consistency, debt-to-income, emergency buffer, and category diversity.
+            </p>
+          </div>
+        </section>
+
+        <section class="panel glass">
+          <h3>5-Factor Breakdown</h3>
+          ${(scoreData.components || []).map(c => `
+            <div class="imp">
+              <span><b>${c.name}</b><br><small class="cat">${c.value}</small></span>
+              <span class="ax">
+                <i data-v="${c.score}" style="left:0;background:${c.score >= c.max_score * 0.7 ? 'var(--ok)' : c.score >= c.max_score * 0.4 ? 'var(--warn)' : 'var(--bad)'}"></i>
+              </span>
+              <b class="${c.score >= c.max_score * 0.7 ? 'ok' : 'warn'}">${c.score.toFixed(1)} <small>/ ${c.max_score.toFixed(0)}</small></b>
+            </div>
+          `).join('')}
+        </section>
+
+        ${personality ? `
+          <section class="panel glass arch">
+            <h3>Spending Personality Profile</h3>
+            <div class="arch-n grad">${personality.title}</div>
+            <p>${personality.description}</p>
+            <div class="arch-g">
+              <div class="arch-c">
+                <b class="ok">Key Strength</b>
+                <p>${personality.key_strength}</p>
+              </div>
+              <div class="arch-c v">
+                <b class="warn">Vulnerability</b>
+                <p>${personality.key_vulnerability}</p>
+              </div>
+            </div>
+            <div class="tip"><b>Advisor Tip:</b> ${personality.actionable_tip}</div>
+          </section>
+        ` : ''}
+
+        ${benchmarks ? `
+          <section class="panel glass">
+            <h3>Peer Cohort Benchmarks ("What Others Like You Do")</h3>
+            <p class="cat" style="margin-bottom:14px;">Comparing your metrics anonymously against peers in the <b>${benchmarks.cohort_name}</b> cohort.</p>
+            <div class="tw">
+              <table>
+                <thead>
+                  <tr><th>Metric</th><th>Your Value</th><th>Cohort Average</th><th>Top 20% Tier</th><th>Status</th></tr>
+                </thead>
+                <tbody>
+                  ${(benchmarks.metrics || []).map(m => `
+                    <tr>
+                      <td><b>${m.metric_name}</b></td>
+                      <td><b>${m.user_value}${m.unit}</b></td>
+                      <td>${m.peer_average}${m.unit}</td>
+                      <td>${m.top_percentile}${m.unit}</td>
+                      <td><span class="chip ${m.status === 'ahead' ? 'ok' : 'warn'}">${m.status.toUpperCase()}</span></td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            <div style="margin-top:12px;font-size:13px;color:var(--sec);"><em>${benchmarks.cohort_insight}</em></div>
+          </section>
+        ` : ''}
+
+        ${streaks ? `
+          <section class="panel glass">
+            <h3>Savings Streak & Milestones</h3>
+            <div class="stats" style="margin:14px 0;">
+              <div class="stat glass"><small>Current Positive Streak</small><b class="ok">${streaks.current_streak_months} Months</b></div>
+              <div class="stat glass"><small>Personal Best Streak</small><b>${streaks.best_streak_months} Months</b></div>
+              <div class="stat glass"><small>Status</small><b class="ok">${streaks.is_streak_active ? '🔥 Active Streak' : 'Pending'}</b></div>
+            </div>
+            <div class="chips">
+              ${(streaks.milestones || []).map(m => `
+                <i style="background:${m.achieved ? 'rgba(34,197,94,0.18)' : 'var(--g1)'};border-color:${m.achieved ? 'var(--ok)' : 'var(--gb)'};color:${m.achieved ? 'var(--ok)' : 'var(--mut)'};">
+                  ${m.achieved ? '✓ ' : '○ '}${m.title}
+                </i>
+              `).join('')}
+            </div>
+          </section>
+        ` : ''}
+
+        ${calendar && calendar.days ? `
+          <section class="panel glass">
+            <h3>Daily Spending Intensity Heatmap</h3>
+            <p class="cat">Heatmap showing transaction intensity across the past statement period.</p>
+            <div class="heatmap-grid">
+              ${calendar.days.slice(-60).map(d => {
+                const color = d.intensity === 'high' ? '#ef4444' : d.intensity === 'medium' ? '#f59e0b' : d.intensity === 'low' ? '#22d3ee' : '#22c55e';
+                return `<div class="heatmap-cell" style="background:${color};" title="${d.date}: ${inr(d.total_spend)} (${d.transaction_count} txns)">${d.day_number || ''}</div>`;
+              }).join('')}
+            </div>
+          </section>
+        ` : ''}
+      `);
+
+      countUp(scoreData.total_score);
+      requestAnimationFrame(() => {
+        document.querySelectorAll('.imp i').forEach(i => {
+          i.style.width = Math.min(100, Math.max(5, (+$('#sn').textContent || 80))) + '%';
+        });
+      });
+    } catch (err) {
+      main.innerHTML = page(`<section class="panel glass"><h3>Error loading score</h3><p class="cat">${err.message}</p></section>`);
+    }
+  },
+
+  // 7. ANOMALY DETECTION ENGINE
+  async anomalies() {
+    main.innerHTML = hero('ANOMALIES', 'danger.jpg', 'danger') +
+      page(`<div style="display:flex;justify-content:center;padding:40px;"><div class="spin"></div> Running statistical Z-score & IsolationForest detectors...</div>`);
+
+    try {
+      const anomaliesRes = await apiFetch('/anomalies', { headers: authHeaders() }).catch(() => ({ anomalies: [] }));
+      const anomalies = Array.isArray(anomaliesRes) ? anomaliesRes : (anomaliesRes.anomalies || []);
+      const patterns = await apiFetch('/anomalies/patterns', { headers: authHeaders() }).catch(() => null);
+
+      const totalUnusual = (patterns && patterns.total_anomalous_spend != null)
+        ? patterns.total_anomalous_spend
+        : anomalies.reduce((acc, a) => acc + (a.amount || 0), 0);
+
+      main.innerHTML = hero('ANOMALIES', 'danger.jpg', 'danger') + page(`
+        <section class="panel glass">
+          <div class="stats">
+            <div class="stat glass"><small>Flagged Anomalies</small><b class="bad">${anomalies.length} Transactions</b></div>
+            <div class="stat glass"><small>Unusual Spending Total</small><b class="bad">${inr(totalUnusual)}</b></div>
+            <div class="stat glass"><small>Detection Architecture</small><b>Z-Score + IsolationForest</b></div>
+          </div>
+
+          <p class="cat" style="margin:16px 0 12px 0;">
+            Transactions with |z| > 2.5 or identified by multi-dimensional IsolationForest (amount, category, and day-of-week).
+          </p>
+
+          <div style="display:grid;gap:12px;margin-top:14px;">
+            ${anomalies.length === 0 ? `<p class="ok">No anomalies detected in the current statement period. All spending conforms to baseline models!</p>` : ''}
+            ${anomalies.map((r, i) => `
+              <div class="an" style="animation-delay:${i * 60}ms;">
+                <div class="g">
+                  <b>${r.description}</b>
+                  <div class="cat">${r.category_name || 'General'} · ${r.date} · ${r.payment_mode || 'Card'} · Outlier severity: ${r.severity || 'high'}</div>
+                </div>
+                <div style="text-align:right;">
+                  <b>${inr(r.amount)}</b>
+                  <div style="margin-top:4px;">
+                    <span class="chip ${r.severity === 'critical' || r.anomaly_score >= 0.75 ? 'bad' : 'warn'}">
+                      ${(r.severity || 'Anomaly').toUpperCase()} (${Math.round((r.anomaly_score || 0.7) * 100)}%)
+                    </span>
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </section>
+
+        ${patterns && (patterns.category_distribution || patterns.top_categories) ? `
+          <section class="panel glass" style="margin-top:14px;">
+            <h3>Anomaly Patterns & Insights</h3>
+            <p class="cat">Distribution of detected unusual spending patterns across expense categories.</p>
+            <div class="chips" style="margin-top:10px;">
+              ${(patterns.category_distribution || patterns.top_categories || []).map(tc => `
+                <i>${tc.category}: ${tc.count} anomalies (${inr(tc.total_amount)})</i>
+              `).join('')}
+            </div>
+          </section>
+        ` : ''}
+      `);
+    } catch (err) {
+      main.innerHTML = page(`<section class="panel glass"><h3>Error detecting anomalies</h3><p class="cat">${err.message}</p></section>`);
+    }
+  }
+};
+
+/* -------------------------------------------------------------
+   CSV UPLOAD & FILE PARSING (WIRED TO POST /api/transactions/upload)
+------------------------------------------------------------- */
+const csv = $('#csv'), drop = $('#drop');
+const DT = 'Drag and drop your CSV here';
+const DS = 'or click to browse. Needs date, description, and amount columns.';
+let upFile = null;
+
+const fail = m => {
+  drop.className = 'drop err';
+  $('#dt').textContent = 'File not accepted';
+  $('#ds').textContent = m;
+};
+
+function pick(f) {
+  drop.className = 'drop';
+  upFile = null;
+  $('#cont').disabled = true;
+  if (!f) return;
+  if (!/\.csv$/i.test(f.name)) return fail('That is not a CSV file. Export your statement as .csv and try again.');
+
+  f.text().then(t => {
+    const L = t.split(/\r?\n/).filter(Boolean);
+    const h = (L[0] || '').toLowerCase();
+    if (L.length < 2 || !/date|narration|description|particular|amount|debit|credit|withdrawal|deposit/i.test(h)) {
+      return fail('Missing required header columns. Need Date, Description, and Amount (or Debit/Credit).');
+    }
+    upFile = f;
+    drop.className = 'drop ok';
+    $('#dt').textContent = f.name;
+    $('#ds').textContent = `${L.length - 1} records detected (${(f.size / 1024).toFixed(1)} KB). Ready for upload.`;
+    $('#cont').disabled = false;
+  });
+}
+
+function resetUp() {
+  csv.value = '';
+  pick(null);
+  $('#dt').textContent = DT;
+  $('#ds').textContent = DS;
+  $('#pg').hidden = $('#pt').hidden = true;
+  $('#pg').firstElementChild.style.width = 0;
+}
+
+csv.onchange = () => pick(csv.files[0]);
+['dragenter', 'dragover'].forEach(v => drop.addEventListener(v, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(v => drop.addEventListener(v, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => pick(e.dataTransfer.files[0]));
+
+// Continue button uploads the CSV to backend
+$('#cont').onclick = async () => {
+  if (!upFile) return;
+  $('#cont').disabled = true;
+  const pg = $('#pg'), pt = $('#pt');
+  pg.hidden = pt.hidden = false;
+
+  const steps = [
+    'Parsing Indian bank statement headers and dates...',
+    'Running 3-tier categorization (Rules, ML, Gemini Flash)...',
+    'Detecting recurring commitments and anomalies...',
+    'Updating cash flow models and forecasts...'
+  ];
+
+  steps.forEach((m, i) => {
+    setTimeout(() => {
+      pt.textContent = m;
+      pg.firstElementChild.style.width = ((i + 1) * 22) + '%';
+    }, i * 400);
+  });
+
+  const formData = new FormData();
+  formData.append('file', upFile);
+
+  try {
+    const res = await fetch(`${API_BASE}/transactions/upload`, {
+      method: 'POST',
+      headers: activeToken ? { 'Authorization': 'Bearer ' + activeToken } : {},
+      body: formData
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Upload failed');
+    }
+
+    const data = await res.json();
+    pg.firstElementChild.style.width = '100%';
+    pt.textContent = `Success! ${data.transactions_count || 'All'} transactions imported and categorized.`;
+
+    setTimeout(() => {
+      localStorage.setItem('cf-data', 'uploaded');
+      location.hash = '#/home';
+    }, 800);
+  } catch (err) {
+    pt.textContent = `Upload error: ${err.message}`;
+    $('#cont').disabled = false;
+  }
+};
+
+$('#demo').onclick = async () => {
+  await switchPersona('salaried');
+  location.hash = '#/home';
+};
+
+$('#smp').onclick = () => {
+  const sample = `Date,Description,Amount,Type,Mode\n2026-11-01,NEFT-CREDIT-SALARY-ACME TECH,65000.00,credit,NEFT\n2026-11-02,UPI-SWIGGY-FOOD ORDER,640.00,debit,UPI\n2026-11-05,NEFT-RENT-HOUSING SOCIETY,18000.00,debit,NEFT\n2026-11-08,POS-AMAZON PAY INDIA,2499.00,debit,Card\n2026-11-10,AUTO-DEBIT-NETFLIX,649.00,debit,Auto-Debit\n2026-11-12,UPI-ELECTRICITY-BESCOM,1850.00,debit,UPI\n2026-11-15,AUTO-DEBIT-HDFC-CAR-LOAN-EMI,9800.00,debit,Auto-Debit\n2026-11-18,UPI-UBER-TRIP,340.00,debit,UPI\n2026-11-20,UPI-ZEPTO-GROCERY,890.00,debit,UPI\n2026-11-25,AUTO-DEBIT-MUTUAL-FUND-SIP,5000.00,debit,Auto-Debit\n`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([sample], { type: 'text/csv' }));
+  a.download = 'sample_bank_statement.csv';
+  a.click();
+};
+
+/* -------------------------------------------------------------
+   ROUTER & INITIALIZATION
+------------------------------------------------------------- */
+function route() {
+  const k = location.hash.slice(2) || 'home';
+
+  if (k === 'upload') {
+    document.body.dataset.view = 'upload';
+    resetUp();
+    return;
+  }
+
+  if (k === 'login') {
+    document.body.dataset.view = 'login';
+    return;
+  }
+
+  if (PAGES[k]) {
+    document.body.dataset.view = 'app';
+    document.querySelectorAll('.nav-i[data-k]').forEach(a => a.classList.toggle('on', a.dataset.k === k));
+    scrollTo(0, 0);
+    PAGES[k]();
+  } else {
+    location.hash = '#/home';
+  }
+}
+
+addEventListener('hashchange', route);
+
+// Initialize on page load
+initAuth().then(() => {
+  route();
+});

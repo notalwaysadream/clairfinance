@@ -109,9 +109,11 @@ class SavingsStreakResponse(BaseModel):
 class CalendarDayPoint(BaseModel):
     date: str
     total_amount: float
+    total_spend: Optional[float] = None
     transaction_count: int
     intensity: int  # 0 to 4
     top_category: str
+    day_number: Optional[int] = None
 
 class CalendarHeatmapResponse(BaseModel):
     start_date: str
