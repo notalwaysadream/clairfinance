@@ -18,7 +18,7 @@ DB_FILE_PATH = BACKEND_DIR / "finops.db"
 DB_URI_PATH = DB_FILE_PATH.as_posix()
 
 class Settings:
-    PROJECT_NAME: str = "ClairFinance API"
+    PROJECT_NAME: str = "ClaireFinance API"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api"
     
@@ -29,7 +29,7 @@ class Settings:
     # Auth & JWT
     JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "hackathon-secret-jwt-key-2026-super-secure")
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_DAYS: int = 7
+    ACCESS_TOKEN_EXPIRE_DAYS: int = 30
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
     
     # AI / LLM

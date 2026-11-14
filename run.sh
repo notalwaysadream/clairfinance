@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ClairFinance Startup Script
+# ClaireFinance Startup Script
 # Boots both FastAPI backend (port 8000) and Frontend (port 3000), seeds datasets, and opens the browser.
 
 set -e
@@ -11,7 +11,7 @@ VENV_DIR="$BACKEND_DIR/venv"
 DATA_DIR="$ROOT_DIR/data"
 
 echo "=================================================="
-echo "🏦 Launching ClairFinance Operating System"
+echo "🏦 Launching ClaireFinance Operating System"
 echo "Root directory: $ROOT_DIR"
 echo "=================================================="
 
@@ -56,7 +56,7 @@ echo "🌱 Ensuring database and test personas (Salaried, Freelancer, Student) a
 # 6. Process Cleanup Handler for Ctrl+C
 cleanup() {
     echo ""
-    echo "🛑 Shutting down ClairFinance (backend & frontend)..."
+    echo "🛑 Shutting down ClaireFinance (backend & frontend)..."
     if [ -n "$BACKEND_PID" ]; then
         kill "$BACKEND_PID" 2>/dev/null || true
     fi
@@ -65,10 +65,20 @@ cleanup() {
     fi
     wait "$BACKEND_PID" 2>/dev/null || true
     wait "$FRONTEND_PID" 2>/dev/null || true
-    echo "✅ ClairFinance processes stopped cleanly. Goodbye!"
+    echo "✅ ClaireFinance processes stopped cleanly. Goodbye!"
     exit 0
 }
 trap cleanup SIGINT SIGTERM EXIT
+
+# 6.5 Free ports 8000 and 3000 if already occupied by lingering processes
+for PORT in 8000 3000; do
+    PIDS=$(lsof -ti :$PORT 2>/dev/null || true)
+    if [ -n "$PIDS" ]; then
+        echo "🧹 Port $PORT is already in use by PID(s): $PIDS. Freeing port..."
+        kill -9 $PIDS 2>/dev/null || true
+    fi
+done
+sleep 0.5
 
 # 7. Start FastAPI Backend on Port 8000
 echo "🚀 Starting FastAPI Backend on http://localhost:8000..."
@@ -79,7 +89,7 @@ BACKEND_PID=$!
 # 8. Start Frontend Web Server on Port 3000
 echo "🎨 Starting Frontend Server on http://localhost:3000..."
 cd "$ROOT_DIR"
-python3 -m http.server 3000 --directory "$FRONTEND_DIR" > /dev/null 2>&1 &
+python3 "$ROOT_DIR/scripts/serve_frontend.py" 3000 "$FRONTEND_DIR" > /dev/null 2>&1 &
 FRONTEND_PID=$!
 
 # 9. Wait for Backend to become healthy
@@ -97,7 +107,7 @@ else
 fi
 
 echo "=================================================="
-echo "✨ ClairFinance is LIVE!"
+echo "✨ ClaireFinance is LIVE!"
 echo "=================================================="
 echo "💻 Frontend App:     http://localhost:3000"
 echo "⚙️ Backend API:      http://localhost:8000"

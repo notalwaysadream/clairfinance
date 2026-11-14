@@ -15,7 +15,7 @@ async def test_health_check():
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "healthy"
-        assert "ClairFinance API" in data["app"]
+        assert "ClaireFinance API" in data["app"]
 
 @pytest.mark.asyncio
 async def test_personas_and_switching():
@@ -363,3 +363,50 @@ async def test_active_learning_category_patch():
         from app.services.categorizer import categorizer
         cat_predicted, _ = categorizer.categorize(first_txn["description"])
         assert cat_predicted == "Entertainment"
+
+@pytest.mark.asyncio
+async def test_google_auth_and_session():
+    """Verify Google OAuth configuration, token issuance, session profile, and data persistence."""
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        # 1. Config endpoint
+        cfg_res = await client.get("/api/auth/config")
+        assert cfg_res.status_code == 200
+        cfg_data = cfg_res.json()
+        assert "google_client_id" in cfg_data
+        assert "apps.googleusercontent.com" in cfg_data["google_client_id"]
+
+        # 2. Unauthenticated /api/auth/me should return 401
+        unauth_res = await client.get("/api/auth/me")
+        assert unauth_res.status_code == 401
+
+        # 3. Google auth endpoint with mock token
+        auth_res = await client.post("/api/auth/google", json={"id_token": "mock-token"})
+        assert auth_res.status_code == 200
+        auth_data = auth_res.json()
+        assert "access_token" in auth_data
+        assert "user" in auth_data
+        token = auth_data["access_token"]
+        user = auth_data["user"]
+        assert user["id"] is not None
+
+        # 4. Authenticated /api/auth/me with bearer token
+        headers = {"Authorization": f"Bearer {token}"}
+        me_res = await client.get("/api/auth/me", headers=headers)
+        assert me_res.status_code == 200
+        me_data = me_res.json()
+        assert me_data["id"] == user["id"]
+        assert me_data["email"] == user["email"]
+
+        # 5. Seed sample transactions into this account
+        seed_res = await client.post("/api/transactions/seed-sample", headers=headers)
+        assert seed_res.status_code == 200
+        seed_data = seed_res.json()
+        assert seed_data["total_saved"] > 0
+
+        # 6. Verify transactions are stored and retrieved for this user
+        txns_res = await client.get("/api/transactions?limit=10", headers=headers)
+        assert txns_res.status_code == 200
+        txns_data = txns_res.json()
+        assert txns_data["total"] == seed_data["total_saved"]
+

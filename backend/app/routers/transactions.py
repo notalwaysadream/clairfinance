@@ -1,4 +1,5 @@
 import uuid
+from pathlib import Path
 from datetime import date, datetime
 from typing import Optional, List
 from fastapi import APIRouter, Depends, UploadFile, File, Query, HTTPException, status
@@ -31,6 +32,127 @@ from app.services.recurring_detector import detect_recurring_patterns
 
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
 
+DATA_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data"
+
+@router.post("/seed-sample")
+async def seed_sample_transactions(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Seeds the 12-month sample dataset directly into the authenticated user's account,
+    allowing instant exploration of forecasts, health scores, and anomaly detection.
+    """
+    sample_file = DATA_DIR / "salaried_transactions.csv"
+    if not sample_file.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Sample dataset file not found on server."
+        )
+
+    with open(sample_file, "rb") as f:
+        content = f.read()
+
+    raw_txns, parse_errors = parse_csv_content(content)
+    if not raw_txns:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to parse sample transaction data."
+        )
+
+    target_user_id = current_user.id
+
+    # Clean existing data for this account
+    await db.execute(delete(Alert).where(Alert.user_id == target_user_id))
+    await db.execute(delete(RecurringPattern).where(RecurringPattern.user_id == target_user_id))
+    await db.execute(delete(Transaction).where(Transaction.user_id == target_user_id))
+
+    cat_stmt = select(Category)
+    cat_res = await db.execute(cat_stmt)
+    categories = {c.name.lower(): c for c in cat_res.scalars().all()}
+    misc_cat = categories.get("miscellaneous")
+
+    category_names_list = [c.name for c in cat_res.scalars().all()]
+    categorization_results = await categorizer.categorize_batch_with_llm(raw_txns, category_names_list)
+
+    categorized_count = 0
+    for txn, (cat_name, conf) in zip(raw_txns, categorization_results):
+        matched_cat = categories.get(cat_name.lower(), misc_cat)
+        if matched_cat:
+            txn["category_id"] = matched_cat.id
+            txn["category_name"] = matched_cat.name
+            categorized_count += 1
+        else:
+            txn["category_id"] = None
+            txn["category_name"] = "Miscellaneous"
+
+    raw_txns, recurring_patterns = detect_recurring_patterns(raw_txns)
+    raw_txns = detect_anomalies(raw_txns)
+
+    batch_id = f"sample-{str(uuid.uuid4())[:8]}"
+
+    db_txns = []
+    for item in raw_txns:
+        txn_obj = Transaction(
+            user_id=target_user_id,
+            date=item["date"],
+            description=item["description"],
+            amount=item["amount"],
+            type=item["type"],
+            payment_mode=item["payment_mode"],
+            category_id=item["category_id"],
+            raw_description=item.get("raw_description"),
+            is_recurring=item.get("is_recurring", False),
+            anomaly_score=item.get("anomaly_score", 0.0),
+            upload_batch_id=batch_id,
+        )
+        db_txns.append(txn_obj)
+
+    db.add_all(db_txns)
+
+    for txn in raw_txns:
+        if txn.get("anomaly_score", 0.0) >= 0.7 and not txn.get("is_recurring", False):
+            alert = Alert(
+                user_id=target_user_id,
+                alert_type="anomaly",
+                title=f"Unusual Spend: ₹{txn['amount']:,.0f} on {txn['category_name']}",
+                description=f"Transaction '{txn['description']}' was flagged as unusually high for category '{txn['category_name']}'.",
+                severity="warning",
+                trigger_date=txn["date"]
+            )
+            db.add(alert)
+
+    for pat in recurring_patterns:
+        rec_obj = RecurringPattern(
+            user_id=target_user_id,
+            description=pat["description"],
+            category_id=pat.get("category_id"),
+            typical_amount=pat["typical_amount"],
+            frequency=pat["frequency"],
+            day_of_period=pat["day_of_period"],
+            next_expected=pat["next_expected"],
+            confidence=pat["confidence"]
+        )
+        db.add(rec_obj)
+
+        alert = Alert(
+            user_id=target_user_id,
+            alert_type="recurring_payment",
+            title=f"Upcoming {pat['frequency'].title()} Payment: ₹{pat['typical_amount']:,.0f}",
+            description=f"Recurring charge expected for '{pat['description']}' around {pat['next_expected']}.",
+            severity="info",
+            trigger_date=pat["next_expected"]
+        )
+        db.add(alert)
+
+    await db.commit()
+
+    return {
+        "message": f"Successfully loaded {len(db_txns)} transactions into your account.",
+        "total_saved": len(db_txns),
+        "user_email": current_user.email
+    }
+
 @router.post("/upload", response_model=CSVUploadResponse)
 async def upload_transactions_csv(
     file: UploadFile = File(...),
@@ -57,12 +179,10 @@ async def upload_transactions_csv(
             detail=f"Could not parse valid transactions from the uploaded CSV: {err_msg}"
         )
 
-    # Use the isolated Custom user so uploaded statements do not mix with pre-seeded demo personas
-    custom_user = await get_or_create_persona_user(db, "custom")
-    target_user_id = custom_user.id
-    set_active_persona_id("custom")
+    # Store transactions under the authenticated current_user's account
+    target_user_id = current_user.id
 
-    # Clear previous transactions, alerts, and recurring patterns for the custom statement
+    # Clear previous transactions, alerts, and recurring patterns for this user so re-uploading refreshes their statement cleanly
     await db.execute(delete(Alert).where(Alert.user_id == target_user_id))
     await db.execute(delete(RecurringPattern).where(RecurringPattern.user_id == target_user_id))
     await db.execute(delete(Transaction).where(Transaction.user_id == target_user_id))
@@ -158,10 +278,10 @@ async def upload_transactions_csv(
 
     await db.commit()
 
-    token = create_access_token({"sub": custom_user.email, "user_id": custom_user.id, "persona": "custom"})
+    token = create_access_token({"sub": current_user.id, "email": current_user.email, "name": current_user.name})
 
     return CSVUploadResponse(
-        message="CSV successfully parsed, categorized, and stored.",
+        message="CSV successfully parsed, categorized, and stored in your account.",
         total_parsed=len(raw_txns),
         total_saved=len(db_txns),
         batch_id=batch_id,
@@ -169,7 +289,7 @@ async def upload_transactions_csv(
         anomalies_detected=anomalies_detected,
         recurring_detected=recurring_detected,
         access_token=token,
-        persona_id="custom",
+        persona_id="google" if not current_user.email.endswith("@clairfinance.com") else "custom",
         errors=parse_errors[:10]
     )
 

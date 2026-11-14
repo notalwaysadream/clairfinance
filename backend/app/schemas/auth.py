@@ -3,7 +3,8 @@ from typing import Optional
 from datetime import datetime
 
 class GoogleAuthRequest(BaseModel):
-    id_token: str
+    id_token: Optional[str] = None
+    access_token: Optional[str] = None
 
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)

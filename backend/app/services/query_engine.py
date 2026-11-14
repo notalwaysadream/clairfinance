@@ -169,9 +169,14 @@ Respond in this EXACT JSON structure:
 """
         llm_analysis = await gemini_client.generate_json(prompt)
 
+    valid_verdicts = {"easily_affordable", "affordable_with_caution", "risky", "not_recommended"}
+    llm_verdict = llm_analysis.get("verdict") if llm_analysis else None
+    if llm_verdict not in valid_verdicts:
+        llm_verdict = verdict
+
     if llm_analysis and "analysis" in llm_analysis:
         return QueryAskResponse(
-            verdict=llm_analysis.get("verdict", verdict),
+            verdict=llm_verdict,
             confidence=float(llm_analysis.get("confidence", confidence)),
             monthly_emi=round(monthly_emi, 2),
             impact=AffordabilityImpact(

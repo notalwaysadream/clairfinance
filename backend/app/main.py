@@ -84,6 +84,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Security Headers Middleware (COOP header for Google Identity Services OAuth popup)
+@app.middleware("http")
+async def add_security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
+    return response
+
 # Health checks
 @app.get("/health", tags=["Health"])
 @app.get("/api/health", tags=["Health"])

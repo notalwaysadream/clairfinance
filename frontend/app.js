@@ -1,4 +1,4 @@
-// ClairFinance — Frontend Engine & Backend Integration
+// ClaireFinance — Frontend Engine & Backend Integration
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
 const main = $('#main');
@@ -11,8 +11,15 @@ let API_BASE = (window.location.port === '8000')
 
 let isBackendConnected = false;
 let activeToken = localStorage.getItem('cf_token') || '';
+let currentUser = null;
+try {
+  const savedUser = localStorage.getItem('cf_user');
+  if (savedUser) currentUser = JSON.parse(savedUser);
+} catch (_) {}
 let activePersona = { id: 'salaried', name: 'Rahul Sharma', role: 'Salaried Employee', avatar: '👨‍💼' };
+const isRealGoogleUser = u => !!(u && u.email && !u.email.includes('clairfinance.com') && !u.email.includes('clairefinance.com'));
 let allCategories = [];
+let googleClientId = "1038762070890-i6fe9lef782cb9sev0ptgv8g5jvuoum4.apps.googleusercontent.com";
 
 // Sidebar Navigation Items
 const NAV = [
@@ -97,12 +104,227 @@ const setTheme = t => {
   localStorage.setItem('cf-theme', t);
   const el = $('.tl');
   if (el) el.textContent = t === 'dark' ? 'Dark mode' : 'Light mode';
+  renderGoogleButton();
 };
 setTheme(document.documentElement.dataset.theme || 'dark');
 $('#theme').onclick = () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
 
-// Authentication & Persona Switching
+// Load dynamic auth config from backend
+async function loadGoogleAuthConfig() {
+  try {
+    const cfg = await fetch(`${API_BASE}/auth/config`).then(r => r.json()).catch(() => null);
+    if (cfg && cfg.google_client_id) {
+      googleClientId = cfg.google_client_id;
+    }
+  } catch (_) {}
+}
+
+let tokenClient = null;
+let gisInitialized = false;
+let gisClientId = '';
+
+// Render official Google Identity Services button with theme matching
+function renderGoogleButton() {
+  const container = document.getElementById('googleSignInDiv');
+  if (!container || typeof google === 'undefined' || !google.accounts || !google.accounts.id) return;
+
+  try {
+    const isDark = document.documentElement.dataset.theme !== 'light';
+    google.accounts.id.renderButton(container, {
+      type: 'standard',
+      theme: isDark ? 'filled_black' : 'outline',
+      size: 'large',
+      text: 'signin_with',
+      shape: 'pill',
+      logo_alignment: 'left',
+      width: 340
+    });
+  } catch (e) {
+    console.warn('renderGoogleButton warning:', e);
+  }
+}
+
+// Google Identity Services Initializer (Singleton to avoid clobbering popup handlers)
+function initGoogleSignIn() {
+  if (typeof google === 'undefined' || !google.accounts) return;
+  if (gisInitialized && gisClientId === googleClientId) {
+    renderGoogleButton();
+    return;
+  }
+
+  try {
+    // 1. Initialize Google ID Services (Official GIS Sign-In with ID Token)
+    if (google.accounts.id) {
+      google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: handleGoogleLoginResponse,
+        auto_select: false,
+        cancel_on_tap_outside: true,
+      });
+      renderGoogleButton();
+    }
+
+    // 2. Google OAuth2 Token Client as fallback
+    if (google.accounts.oauth2) {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: googleClientId,
+        scope: 'email profile openid',
+        callback: handleGoogleOAuthResponse,
+        error_callback: (err) => {
+          console.warn('Google Identity error_callback:', err);
+          const statusMsg = document.getElementById('loginStatusMsg');
+          if (statusMsg) {
+            statusMsg.style.display = 'block';
+            if (err && err.type === 'popup_closed') {
+              statusMsg.className = 'login-msg info';
+              statusMsg.textContent = 'Google sign-in popup was closed. Please click the button to try again.';
+            } else if (err && err.type === 'popup_failed_to_open') {
+              statusMsg.className = 'login-msg err';
+              statusMsg.textContent = 'Sign-in popup was blocked by your browser. Please allow popups for localhost:3000.';
+            } else {
+              statusMsg.className = 'login-msg err';
+              statusMsg.textContent = `Google Sign-in error: ${err.message || err.type || 'Authentication failed'}`;
+            }
+          }
+        }
+      });
+    }
+
+    gisInitialized = true;
+    gisClientId = googleClientId;
+  } catch (e) {
+    console.warn('Google Identity Services setup warning:', e);
+  }
+}
+
+// Helper to set authenticated user session
+function setAuthenticatedUser(token, user) {
+  activeToken = token;
+  currentUser = user;
+  localStorage.setItem('cf_token', activeToken);
+  localStorage.setItem('cf_google_token', activeToken);
+  localStorage.setItem('cf_user', JSON.stringify(currentUser));
+  localStorage.setItem('cf-data', 'google');
+
+  activePersona = {
+    id: 'google',
+    name: currentUser.name || 'Google User',
+    role: currentUser.email,
+    avatar: currentUser.avatar_url || '👤',
+    income_pattern: 'Google Account'
+  };
+  updatePersonaUI();
+}
+
+// Handle Google OAuth2 token response (from custom button popup)
+async function handleGoogleOAuthResponse(tokenResponse) {
+  const statusMsg = document.getElementById('loginStatusMsg');
+  if (tokenResponse && tokenResponse.error) {
+    if (tokenResponse.error !== 'popup_closed_by_user') {
+      if (statusMsg) {
+        statusMsg.className = 'login-msg err';
+        statusMsg.style.display = 'block';
+        statusMsg.textContent = `Google Sign-in failed: ${tokenResponse.error}`;
+      }
+    }
+    return;
+  }
+
+  if (!tokenResponse || !tokenResponse.access_token) {
+    return;
+  }
+
+  if (statusMsg) {
+    statusMsg.className = 'login-msg info';
+    statusMsg.style.display = 'block';
+    statusMsg.textContent = 'Verifying Google session...';
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/auth/google`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ access_token: tokenResponse.access_token })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Sign in failed (${res.status})`);
+    }
+
+    const data = await res.json();
+    setAuthenticatedUser(data.access_token, data.user);
+
+    if (statusMsg) {
+      statusMsg.className = 'login-msg ok';
+      statusMsg.textContent = 'Signed in successfully! Loading dashboard...';
+    }
+
+    setTimeout(() => {
+      location.hash = '#/home';
+      route();
+    }, 300);
+  } catch (err) {
+    console.error('Google OAuth login error:', err);
+    if (statusMsg) {
+      statusMsg.className = 'login-msg err';
+      statusMsg.style.display = 'block';
+      statusMsg.textContent = `Google Sign-in failed: ${err.message}`;
+    }
+  }
+}
+
+// Handle Google Login response from GIS (ID token)
+async function handleGoogleLoginResponse(response) {
+  const statusMsg = document.getElementById('loginStatusMsg');
+  if (statusMsg) {
+    statusMsg.className = 'login-msg info';
+    statusMsg.style.display = 'block';
+    statusMsg.textContent = 'Verifying Google session...';
+  }
+
+  try {
+    if (!response || !response.credential) {
+      throw new Error('Google did not provide credentials.');
+    }
+
+    const res = await fetch(`${API_BASE}/auth/google`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_token: response.credential })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Google login failed (${res.status})`);
+    }
+
+    const data = await res.json();
+    setAuthenticatedUser(data.access_token, data.user);
+
+    if (statusMsg) {
+      statusMsg.className = 'login-msg ok';
+      statusMsg.textContent = 'Signed in successfully! Loading dashboard...';
+    }
+
+    setTimeout(() => {
+      location.hash = '#/home';
+      route();
+    }, 300);
+  } catch (err) {
+    console.error('Google login error:', err);
+    if (statusMsg) {
+      statusMsg.className = 'login-msg err';
+      statusMsg.style.display = 'block';
+      statusMsg.textContent = `Google Sign-in failed: ${err.message}`;
+    }
+  }
+}
+
+// Authentication & Session Verification
 async function initAuth() {
+  await loadGoogleAuthConfig();
+
   try {
     const categories = await apiFetch('/categories');
     allCategories = categories || [];
@@ -111,49 +333,96 @@ async function initAuth() {
   }
 
   if (!activeToken) {
-    try {
-      const devRes = await apiFetch('/auth/dev-login', { method: 'POST', headers: authHeaders() });
-      activeToken = devRes.access_token;
-      localStorage.setItem('cf_token', activeToken);
-    } catch (e) {
-      console.log('Dev login attempt:', e.message);
-    }
+    currentUser = null;
+    return false;
   }
 
+  // Validate stored token against /auth/me
   try {
-    const activeRes = await apiFetch('/personas/active', { headers: authHeaders() });
-    if (activeRes) {
+    const user = await apiFetch('/auth/me', { headers: authHeaders() });
+    if (user && user.id) {
+      currentUser = user;
+      localStorage.setItem('cf_user', JSON.stringify(user));
       activePersona = {
-        id: activeRes.id,
-        name: activeRes.name,
-        role: activeRes.role,
-        avatar: activeRes.id === 'student' ? '🎓' : activeRes.id === 'freelancer' ? '👩‍💻' : '👨‍💼',
-        income_pattern: activeRes.income_pattern
+        id: 'google',
+        name: user.name || 'Google User',
+        role: user.email,
+        avatar: user.avatar_url || '👤',
+        income_pattern: 'Google Account'
       };
       updatePersonaUI();
+      return true;
     }
-  } catch (e) {
-    console.log('Personas load error:', e.message);
+  } catch (err) {
+    console.warn('Session verification failed:', err.message);
+    activeToken = '';
+    currentUser = null;
+    localStorage.removeItem('cf_token');
+    localStorage.removeItem('cf_user');
+    return false;
   }
+  return false;
 }
 
 function updatePersonaUI() {
   const nameEl = $('#side-p-name');
   const roleEl = $('#side-p-role');
   const avatarEl = $('#side-p-avatar');
+  const badgeEl = $('#side-p-badge');
   const pillEl = $('#topbar-persona-pill');
+  const buttonsContainer = $('#side-persona-buttons');
 
-  if (nameEl) nameEl.textContent = activePersona.name;
-  if (roleEl) roleEl.textContent = activePersona.role;
-  if (avatarEl) avatarEl.textContent = activePersona.avatar;
-  if (pillEl) pillEl.textContent = `${activePersona.name} · ${activePersona.role}`;
+  const isGoogleUser = isRealGoogleUser(currentUser);
 
-  $$('.ap-btn').forEach(btn => {
-    btn.classList.toggle('on', btn.dataset.p === activePersona.id);
-  });
+  if (isGoogleUser) {
+    if (nameEl) nameEl.textContent = currentUser.name || 'Google User';
+    if (roleEl) roleEl.textContent = currentUser.email;
+    if (badgeEl) badgeEl.style.display = 'inline-flex';
+    if (avatarEl) {
+      if (currentUser.avatar_url) {
+        avatarEl.innerHTML = `<img src="${currentUser.avatar_url}" alt="Avatar" style="width:34px;height:34px;border-radius:50%;object-fit:cover;display:block;" onerror="this.outerHTML='👤'">`;
+      } else {
+        avatarEl.textContent = '👤';
+      }
+    }
+    if (pillEl) {
+      pillEl.innerHTML = `🟢 Google · ${currentUser.name || currentUser.email}`;
+    }
+    // HIDE demo persona switcher completely after Google login
+    if (buttonsContainer) {
+      buttonsContainer.style.display = 'none';
+    }
+  } else {
+    if (nameEl) nameEl.textContent = activePersona.name;
+    if (roleEl) roleEl.textContent = activePersona.role;
+    if (badgeEl) badgeEl.style.display = 'none';
+    if (avatarEl) avatarEl.textContent = activePersona.avatar;
+    if (pillEl) pillEl.textContent = `${activePersona.name} · ${activePersona.role}`;
+
+    // Show demo persona switcher buttons only for unauthenticated demo mode
+    if (buttonsContainer) {
+      buttonsContainer.style.display = 'flex';
+    }
+    $$('.ap-btn').forEach(btn => {
+      btn.classList.toggle('on', btn.dataset.p === activePersona.id);
+    });
+  }
+
+  // Update banner user card next to logo if present
+  const bannerCard = $('#bannerUserCard');
+  if (bannerCard) {
+    bannerCard.outerHTML = getUserCardHTML();
+  }
 }
 
 async function switchPersona(personaId) {
+  // If user is logged into a real Google account, prevent switching to demo personas
+  const isGoogleUser = isRealGoogleUser(currentUser);
+  if (isGoogleUser) {
+    console.warn('Demo persona switching is disabled for authenticated Google accounts.');
+    return;
+  }
+
   try {
     const res = await apiFetch(`/personas/switch/${personaId}`, {
       method: 'POST',
@@ -162,6 +431,13 @@ async function switchPersona(personaId) {
     activeToken = res.access_token;
     localStorage.setItem('cf_token', activeToken);
     localStorage.setItem('cf-data', personaId);
+    currentUser = {
+      id: res.active_persona.id,
+      name: res.active_persona.name,
+      email: res.active_persona.email,
+      role: res.active_persona.role,
+      avatar_url: res.active_persona.avatar_url
+    };
     activePersona = {
       id: res.active_persona.id,
       name: res.active_persona.name,
@@ -171,7 +447,6 @@ async function switchPersona(personaId) {
     };
     updatePersonaUI();
 
-    // Re-render current page
     const curHash = location.hash.slice(2) || 'home';
     if (PAGES[curHash]) {
       PAGES[curHash]();
@@ -185,6 +460,11 @@ async function switchPersona(personaId) {
 document.addEventListener('click', e => {
   const btn = e.target.closest('.ap-btn, .p-quick-btn');
   if (btn) {
+    // If authenticated as Google user, do not allow persona switching
+    const isGoogleUser = isRealGoogleUser(currentUser);
+    if (isGoogleUser) {
+      return;
+    }
     const pid = btn.dataset.p || btn.dataset.persona;
     if (pid) {
       switchPersona(pid).then(() => {
@@ -196,50 +476,60 @@ document.addEventListener('click', e => {
   }
 });
 
-// Login Form Handling
-$('#loginForm').onsubmit = async e => {
-  e.preventDefault();
-  try {
-    const res = await apiFetch('/auth/dev-login', { method: 'POST', headers: authHeaders() });
-    activeToken = res.access_token;
-    localStorage.setItem('cf_token', activeToken);
-    localStorage.setItem('cf-data', 'active');
-    location.hash = '#/home';
-  } catch (err) {
-    localStorage.setItem('cf-data', 'active');
-    location.hash = '#/home';
-  }
-};
+// Google Sign-In button click (fallback before Google native button loads)
+const gbtn = $('#gbtn');
+if (gbtn) {
+  gbtn.onclick = () => {
+    const statusMsg = document.getElementById('loginStatusMsg');
+    if (statusMsg) {
+      statusMsg.className = 'login-msg info';
+      statusMsg.style.display = 'block';
+      statusMsg.textContent = 'Opening Google Sign-In...';
+    }
 
-$('#gbtn').onclick = async () => {
-  try {
-    const res = await apiFetch('/auth/google', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id_token: 'mock-token' })
-    });
-    activeToken = res.access_token;
-    localStorage.setItem('cf_token', activeToken);
-    localStorage.setItem('cf-data', 'google');
-    location.hash = '#/home';
-  } catch (err) {
-    localStorage.setItem('cf-data', 'google');
-    location.hash = '#/home';
-  }
-};
+    if (typeof google === 'undefined' || !google.accounts) {
+      if (statusMsg) {
+        statusMsg.className = 'login-msg err';
+        statusMsg.textContent = 'Google Authentication service is loading. Please check your internet connection.';
+      }
+      return;
+    }
 
-$('#pwt').onclick = e => {
-  const i = $('#pw'), s = i.type === 'password', b = e.currentTarget;
-  i.type = s ? 'text' : 'password';
-  b.setAttribute('aria-pressed', s);
-  b.setAttribute('aria-label', s ? 'Hide password' : 'Show password');
-};
+    if (!tokenClient) {
+      initGoogleSignIn();
+    }
 
+    // Try One-Tap / ID Services prompt first
+    if (google.accounts.id) {
+      try {
+        google.accounts.id.prompt();
+      } catch (_) {}
+    }
+
+    if (tokenClient) {
+      try {
+        tokenClient.requestAccessToken();
+        return;
+      } catch (err) {
+        console.error('Error invoking requestAccessToken:', err);
+      }
+    }
+  };
+}
+
+// Sign out handler
 $('#out').onclick = () => {
   localStorage.removeItem('cf_token');
+  localStorage.removeItem('cf_user');
+  localStorage.removeItem('cf_google_token');
   localStorage.removeItem('cf-data');
   activeToken = '';
+  currentUser = null;
+  activePersona = { id: 'salaried', name: 'Rahul Sharma', role: 'Salaried Employee', avatar: '👨‍💼' };
+  updatePersonaUI();
   location.hash = '#/login';
+  route();
+  setTimeout(renderGoogleButton, 100);
 };
 
 // Spotlight & ripple effects
@@ -262,6 +552,39 @@ document.addEventListener('click', e => {
   d.onanimationend = () => d.remove();
   c.appendChild(d);
 });
+
+// User Card next to Logo
+function getUserCardHTML() {
+  const isGoogle = isRealGoogleUser(currentUser);
+  const name = (currentUser && currentUser.name) ? currentUser.name : (activePersona ? activePersona.name : 'Rahul Sharma');
+  const email = (currentUser && currentUser.email) ? currentUser.email : '';
+  const avatarUrl = (currentUser && currentUser.avatar_url) ? currentUser.avatar_url : null;
+
+  // Extract initials (e.g. "Rahul Sharma" -> "RS", "Vishwas Simha V" -> "VS")
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const initials = parts.length > 1 
+    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase() 
+    : (name.slice(0, 2).toUpperCase() || 'RS');
+
+  let avatarInner = `<span class="buc-initials">${initials}</span>`;
+  if (avatarUrl) {
+    avatarInner = `<img src="${avatarUrl}" alt="${name}" onerror="this.parentElement.classList.add('buc-gradient'); this.outerHTML='<span class=\\'buc-initials\\'>${initials}</span>'">`;
+  }
+
+  const gradientClass = avatarUrl ? '' : 'buc-gradient';
+
+  return `
+    <div class="banner-user-card" id="bannerUserCard" title="${name}${email ? ' (' + email + ')' : ''}">
+      <div class="buc-avatar ${gradientClass}">
+        ${avatarInner}
+      </div>
+      <div class="buc-info">
+        <b class="buc-name">${name}</b>
+        <span class="buc-role">Personal account</span>
+      </div>
+    </div>
+  `;
+}
 
 // UI helpers
 const hero = (t, img, cls) => `<div class="hero ${cls || ''}" style="${img ? `--img:url(assets/${img})` : ''}"><h1>${t}</h1></div>`;
@@ -299,7 +622,7 @@ const CARDS = [
 const PAGES = {
   // 1. HOME DASHBOARD
   async home() {
-    main.innerHTML = `<header class="banner"><div class="br"><svg><use href="#logo"/></svg><div class="wm">Clair<span>finance</span></div></div><p>AI-Powered Personal Financial Operating System</p></header>` +
+    main.innerHTML = `<header class="banner"><div class="banner-inner">${getUserCardHTML()}<div class="br"><svg><use href="#logo"/></svg><div class="wm">Claire<span>Finance</span></div></div><p>AI-Powered Personal Financial Operating System</p></div></header>` +
       page(`<div style="display:flex;justify-content:center;padding:40px;"><div class="spin"></div> Loading dashboard insights...</div>`);
 
     try {
@@ -323,8 +646,25 @@ const PAGES = {
         };
       }
 
-      main.innerHTML = `<header class="banner"><div class="br"><svg><use href="#logo"/></svg><div class="wm">Clair<span>finance</span></div></div><p>Know if you’ll run out of money, and when, before it happens</p></header>` +
+      const hasNoData = overview.total_income === 0 && overview.total_expenses === 0 && (!overview.recent_transactions || overview.recent_transactions.length === 0);
+      const onboardingHTML = hasNoData ? `
+        <div class="card alert" style="--i:-1;background:linear-gradient(135deg,rgba(99,102,241,0.22),rgba(34,211,238,0.12));border:1px solid rgba(99,102,241,0.45);margin-bottom:18px;">
+          <div class="al-i"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          <div style="flex:1">
+            <small style="color:var(--sec);font-weight:600;">NEW ACCOUNT READY</small>
+            <h2 style="margin:4px 0 8px;">Welcome${currentUser && currentUser.name ? ', ' + currentUser.name : ''}!</h2>
+            <p>Your Google account is active, but no bank statement transactions have been loaded yet. Upload your CSV export or load our pre-seeded 12-month sample dataset to experience the full AI financial suite:</p>
+            <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;">
+              <a href="#/upload" class="btn" style="padding:10px 18px;font-size:14px;text-decoration:none;">Upload Statement CSV</a>
+              <button type="button" class="btn ghost" id="homeSeedBtn" style="padding:10px 18px;font-size:14px;">⚡ Load 12-Month Sample Data</button>
+            </div>
+          </div>
+        </div>
+      ` : '';
+
+      main.innerHTML = `<header class="banner"><div class="banner-inner">${getUserCardHTML()}<div class="br"><svg><use href="#logo"/></svg><div class="wm">Claire<span>Finance</span></div></div><p>Know if you’ll run out of money, and when, before it happens</p></div></header>` +
         page(`
+          ${onboardingHTML}
           <a class="card alert" href="${topAlert.link}" style="--i:-1">
             <div class="al-i"><svg viewBox="0 0 24 24"><path d="M10.3 3.9 2.4 17.6A2 2 0 0 0 4.1 20.6h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0ZM12 9v4M12 17h.01"/></svg></div>
             <div id="al" style="flex:1">
@@ -396,6 +736,21 @@ const PAGES = {
         `);
 
       countUp(overview.health_score);
+
+      const homeSeedBtn = $('#homeSeedBtn');
+      if (homeSeedBtn) {
+        homeSeedBtn.onclick = async () => {
+          homeSeedBtn.disabled = true;
+          homeSeedBtn.textContent = 'Loading sample data...';
+          try {
+            await apiFetch('/transactions/seed-sample', { method: 'POST', headers: authHeaders() });
+            PAGES.home();
+          } catch (e) {
+            alert('Failed to load sample dataset: ' + e.message);
+            homeSeedBtn.disabled = false;
+          }
+        };
+      }
     } catch (err) {
       main.innerHTML = page(`<section class="panel glass"><h3>Error loading dashboard</h3><p class="cat">${err.message}</p><button class="btn" onclick="PAGES.home()">Retry</button></section>`);
     }
@@ -1674,19 +2029,25 @@ $('#cont').onclick = async () => {
     if (data.access_token) {
       activeToken = data.access_token;
       localStorage.setItem('cf_token', activeToken);
+      if (isRealGoogleUser(currentUser)) {
+        localStorage.setItem('cf_google_token', activeToken);
+      }
     }
 
-    // Switch active persona in UI to custom uploaded dataset
-    const cleanedName = upFile.name.replace(/\.csv$/i, '');
-    activePersona = {
-      id: 'custom',
-      name: cleanedName.length > 20 ? cleanedName.slice(0, 18) + '...' : cleanedName,
-      role: 'Uploaded Dataset',
-      avatar: '📊',
-      income_pattern: 'User uploaded statement'
-    };
-    localStorage.setItem('cf-data', 'custom');
-    updatePersonaUI();
+    if (isRealGoogleUser(currentUser)) {
+      updatePersonaUI();
+    } else {
+      const cleanedName = upFile.name.replace(/\.csv$/i, '');
+      activePersona = {
+        id: 'custom',
+        name: cleanedName.length > 20 ? cleanedName.slice(0, 18) + '...' : cleanedName,
+        role: 'Uploaded Dataset',
+        avatar: '📊',
+        income_pattern: 'User uploaded statement'
+      };
+      localStorage.setItem('cf-data', 'custom');
+      updatePersonaUI();
+    }
 
     setTimeout(() => {
       location.hash = '#/transactions';
@@ -1698,8 +2059,26 @@ $('#cont').onclick = async () => {
 };
 
 $('#demo').onclick = async () => {
-  await switchPersona('salaried');
-  location.hash = '#/home';
+  const isGoogle = isRealGoogleUser(currentUser);
+  if (isGoogle) {
+    try {
+      pt.hidden = false;
+      pt.textContent = 'Loading 12-month transaction dataset into your Google account...';
+      const res = await apiFetch('/transactions/seed-sample', {
+        method: 'POST',
+        headers: authHeaders()
+      });
+      pt.textContent = res.message || 'Dataset loaded successfully!';
+      setTimeout(() => {
+        location.hash = '#/home';
+      }, 500);
+    } catch (e) {
+      pt.textContent = `Error: ${e.message}`;
+    }
+  } else {
+    await switchPersona('salaried');
+    location.hash = '#/home';
+  }
 };
 
 $('#smp').onclick = () => {
@@ -1714,16 +2093,28 @@ $('#smp').onclick = () => {
    ROUTER & INITIALIZATION
 ------------------------------------------------------------- */
 function route() {
-  const k = location.hash.slice(2) || 'home';
+  const k = location.hash.slice(2);
+
+  // If user is not authenticated, start on login view
+  if (!activeToken) {
+    document.body.dataset.view = 'login';
+    if (location.hash !== '#/login') {
+      location.hash = '#/login';
+    }
+    initGoogleSignIn();
+    renderGoogleButton();
+    return;
+  }
+
+  // If user is authenticated and is on #/login or root, navigate to dashboard
+  if (!k || k === 'login') {
+    location.hash = '#/home';
+    return;
+  }
 
   if (k === 'upload') {
     document.body.dataset.view = 'upload';
     resetUp();
-    return;
-  }
-
-  if (k === 'login') {
-    document.body.dataset.view = 'login';
     return;
   }
 
@@ -1742,4 +2133,18 @@ addEventListener('hashchange', route);
 // Initialize on page load
 initAuth().then(() => {
   route();
+  initGoogleSignIn();
+  renderGoogleButton();
 });
+
+// Periodic retry to ensure Google button is rendered once GSI script loads
+let gisCheckAttempts = 0;
+const gisTimer = setInterval(() => {
+  gisCheckAttempts++;
+  if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
+    initGoogleSignIn();
+    clearInterval(gisTimer);
+  } else if (gisCheckAttempts > 30) {
+    clearInterval(gisTimer);
+  }
+}, 300);

@@ -109,24 +109,69 @@ async def get_current_user(
     Validates JWT token if provided.
     If no token is provided, returns user for the currently active persona.
     """
+    if auth and auth.credentials:
+        token = auth.credentials
+        try:
+            payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.ALGORITHM])
+            user_id: str = payload.get("sub")
+            if user_id:
+                stmt = select(User).where(User.id == user_id)
+                res = await db.execute(stmt)
+                user = res.scalar_one_or_none()
+                if not user and "@" in str(user_id):
+                    stmt_email = select(User).where(User.email == user_id)
+                    res_email = await db.execute(stmt_email)
+                    user = res_email.scalar_one_or_none()
+                if user:
+                    return user
+        except JWTError:
+            pass
+
+    return await get_or_create_persona_user(db, get_active_persona_id())
+
+
+async def get_current_authenticated_user(
+    auth: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    db: AsyncSession = Depends(get_db)
+) -> User:
+    """
+    Strict authentication validator for endpoints such as /auth/me.
+    Raises 401 Unauthorized if token is missing, invalid, or expired.
+    """
     if not auth or not auth.credentials:
-        # Fallback to currently active persona
-        return await get_or_create_persona_user(db, get_active_persona_id())
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication token required"
+        )
 
     token = auth.credentials
     try:
         payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id: str = payload.get("sub")
         if not user_id:
-            return await get_or_create_persona_user(db, get_active_persona_id())
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token claims"
+            )
     except JWTError:
-        return await get_or_create_persona_user(db, get_active_persona_id())
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired or is invalid"
+        )
 
     stmt = select(User).where(User.id == user_id)
-    result = await db.execute(stmt)
-    user = result.scalar_one_or_none()
+    res = await db.execute(stmt)
+    user = res.scalar_one_or_none()
+
+    if not user and "@" in str(user_id):
+        stmt_email = select(User).where(User.email == user_id)
+        res_email = await db.execute(stmt_email)
+        user = res_email.scalar_one_or_none()
 
     if not user:
-        return await get_or_create_persona_user(db, get_active_persona_id())
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found"
+        )
 
     return user
