@@ -15,15 +15,16 @@ load_dotenv(BACKEND_DIR / ".env")
 load_dotenv(PROJECT_ROOT / ".env")
 
 DB_FILE_PATH = BACKEND_DIR / "finops.db"
+DB_URI_PATH = DB_FILE_PATH.as_posix()
 
 class Settings:
     PROJECT_NAME: str = "ClairFinance API"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api"
     
-    # Consistent absolute path database URL
-    DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite+aiosqlite:///{DB_FILE_PATH}")
-    SYNC_DATABASE_URL: str = os.getenv("SYNC_DATABASE_URL", f"sqlite:///{DB_FILE_PATH}")
+    # Consistent absolute path database URL with forward slashes (cross-platform compatible)
+    DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite+aiosqlite:///{DB_URI_PATH}")
+    SYNC_DATABASE_URL: str = os.getenv("SYNC_DATABASE_URL", f"sqlite:///{DB_URI_PATH}")
     
     # Auth & JWT
     JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "hackathon-secret-jwt-key-2026-super-secure")
@@ -47,6 +48,6 @@ class Settings:
 settings = Settings()
 # If DATABASE_URL was set to a relative path like sqlite+aiosqlite:///./finops.db, normalize it
 if "///./" in settings.DATABASE_URL:
-    settings.DATABASE_URL = f"sqlite+aiosqlite:///{DB_FILE_PATH}"
+    settings.DATABASE_URL = f"sqlite+aiosqlite:///{DB_URI_PATH}"
 if "///./" in settings.SYNC_DATABASE_URL:
-    settings.SYNC_DATABASE_URL = f"sqlite:///{DB_FILE_PATH}"
+    settings.SYNC_DATABASE_URL = f"sqlite:///{DB_URI_PATH}"

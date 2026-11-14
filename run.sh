@@ -51,20 +51,7 @@ fi
 
 # 5. Pre-seed DB Personas
 echo "🌱 Ensuring database and test personas (Salaried, Freelancer, Student) are seeded..."
-PYTHONPATH="$BACKEND_DIR" "$VENV_DIR/bin/python3" -c "
-import asyncio
-from app.database import AsyncSessionLocal, engine, Base
-from app.routers.personas import seed_all_personas
-from app.models import DEFAULT_CATEGORIES, Category
-
-async def init():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    async with AsyncSessionLocal() as session:
-        await seed_all_personas(session)
-
-asyncio.run(init())
-" 2>/dev/null || true
+"$VENV_DIR/bin/python3" "$ROOT_DIR/scripts/init_db.py"
 
 # 6. Process Cleanup Handler for Ctrl+C
 cleanup() {
@@ -96,22 +83,7 @@ python3 -m http.server 3000 --directory "$FRONTEND_DIR" > /dev/null 2>&1 &
 FRONTEND_PID=$!
 
 # 9. Wait for Backend to become healthy
-echo "⏳ Waiting for backend health check..."
-MAX_ATTEMPTS=20
-ATTEMPT=0
-while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-    if curl -s "http://localhost:8000/api/health" | grep -q "healthy"; then
-        break
-    fi
-    sleep 0.5
-    ATTEMPT=$((ATTEMPT + 1))
-done
-
-if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
-    echo "⚠️ Warning: Backend health check timed out. Continuing..."
-else
-    echo "✅ Backend is healthy and ready!"
-fi
+"$VENV_DIR/bin/python3" "$ROOT_DIR/scripts/wait_for_backend.py" "http://localhost:8000/api/health"
 
 # 10. Open Web Browser
 TARGET_URL="http://localhost:3000"

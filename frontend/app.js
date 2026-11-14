@@ -5,8 +5,11 @@ const main = $('#main');
 const inr = n => '₹' + Math.abs(Math.round(n || 0)).toLocaleString('en-IN');
 const ARR = '<svg class="ar" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 
-const API_BASE = (window.location.port === '8000') ? '/api' : 'http://localhost:8000/api';
+let API_BASE = (window.location.port === '8000') 
+  ? '/api' 
+  : `http://${window.location.hostname || 'localhost'}:8000/api`;
 
+let isBackendConnected = false;
 let activeToken = localStorage.getItem('cf_token') || '';
 let activePersona = { id: 'salaried', name: 'Rahul Sharma', role: 'Salaried Employee', avatar: '👨‍💼' };
 let allCategories = [];
@@ -34,7 +37,7 @@ function authHeaders() {
 }
 
 async function apiFetch(endpoint, options = {}) {
-  const url = `${API_BASE}${endpoint}`;
+  let url = `${API_BASE}${endpoint}`;
   try {
     const res = await fetch(url, options);
     updateBackendStatus(true);
@@ -44,6 +47,21 @@ async function apiFetch(endpoint, options = {}) {
     }
     return await res.json();
   } catch (err) {
+    // If request failed with network error, attempt alternate host (localhost <-> 127.0.0.1)
+    if ((err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) && !API_BASE.startsWith('/')) {
+      const altHost = API_BASE.includes('localhost') ? '127.0.0.1' : 'localhost';
+      const altBase = `http://${altHost}:8000/api`;
+      try {
+        const altRes = await fetch(`${altBase}${endpoint}`, options);
+        if (altRes.ok) {
+          API_BASE = altBase;
+          updateBackendStatus(true);
+          return await altRes.json();
+        }
+      } catch (_) {
+        // Fallback also unreachable
+      }
+    }
     console.warn(`API call failed for ${endpoint}:`, err.message);
     if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
       updateBackendStatus(false);
@@ -53,11 +71,25 @@ async function apiFetch(endpoint, options = {}) {
 }
 
 function updateBackendStatus(isOnline) {
+  isBackendConnected = isOnline;
   const dot = $('#live-dot');
   const label = $('#api-status-label');
   if (dot) dot.className = isOnline ? 'live-dot' : 'live-dot err';
   if (label) label.textContent = isOnline ? `Backend Connected (${API_BASE})` : 'Backend Disconnected';
 }
+
+// Background auto-reconnect poller: if disconnected, checks health every 3s and reconnects
+setInterval(async () => {
+  if (!isBackendConnected) {
+    try {
+      const probe = await fetch(`${API_BASE}/health`).then(r => r.json()).catch(() => null);
+      if (probe && probe.status === 'healthy') {
+        updateBackendStatus(true);
+        initAuth();
+      }
+    } catch (_) {}
+  }
+}, 3000);
 
 // Theme handling
 const setTheme = t => {
@@ -882,51 +914,239 @@ const PAGES = {
       </div>
     `);
 
-    // Draw the interactive projected balance chart (from temp-dump)
-    const m = d => 36000 - 520 * d + 3000 * Math.sin(d / 6);
-    const sp = d => 1500 + 190 * d;
-    const Y = v => 270 - Math.max(0, Math.min(45000, v)) / 45000 * 250;
+    let activeHorizon = 60;
+    let trajectoryData = null;
 
-    const draw = n => {
-      const X = d => 50 + d / n * 730;
-      const ds = [...Array(n + 1).keys()];
-      const P = f => ds.map(d => X(d) + ',' + Y(f(d))).join(' ');
-      const B = (k, c) => `<polygon class="band" fill="${c}" points="${P(d => m(d) + k * sp(d))} ${[...ds].reverse().map(d => X(d) + ',' + Y(m(d) - k * sp(d))).join(' ')}"/>`;
+    // Helper to generate persona-tailored offline fallback points if API call fails
+    const generateFallbackTrajectory = (nDays) => {
+      const pid = activePersona.id || 'salaried';
+      let startBal = 135000.0, danger = 15000.0;
+      if (pid === 'student') { startBal = 16500.0; danger = 5000.0; }
+      else if (pid === 'freelancer') { startBal = 220000.0; danger = 25000.0; }
+      else if (pid === 'custom') { startBal = 48000.0; danger = 7000.0; }
 
+      let cur = startBal;
+      const pts = [];
+      for (let d = 0; d <= 90; d++) {
+        if (d > 0) {
+          const dom = (d % 30) + 1;
+          const dow = d % 7;
+          if (pid === 'salaried') {
+            if (dom === 1) cur += 80000;
+            if (dom === 5) cur -= 18000;
+            if (dom === 15) cur -= 9800;
+            cur -= 850 * (dow >= 5 ? 1.35 : 0.88);
+          } else if (pid === 'freelancer') {
+            if (dom === 10 || dom === 24) cur += 65000;
+            if (dom === 3) cur -= 15000;
+            cur -= 1100 * (dow >= 5 ? 1.4 : 0.85);
+          } else if (pid === 'student') {
+            if (dom === 1) cur += 10000;
+            if (dom === 2) cur -= 4200;
+            if (dom === 18) cur += 4000;
+            cur -= 280 * (dow >= 5 ? 1.25 : 0.9);
+          } else {
+            cur += -180 + Math.sin(d / 4.5) * 600;
+          }
+        }
+        const spread90 = (startBal * 0.05) * Math.sqrt(d + 1) * 0.9;
+        pts.push({
+          day: d,
+          projected_balance: Math.round(cur),
+          lower_90: Math.round(Math.max(0, cur - spread90)),
+          upper_90: Math.round(cur + spread90),
+          lower_50: Math.round(Math.max(0, cur - spread90 * 0.45)),
+          upper_50: Math.round(cur + spread90 * 0.45)
+        });
+      }
+      const allUp = Math.max(...pts.map(p => p.upper_90));
+      return {
+        persona_id: pid,
+        user_name: activePersona.name,
+        starting_balance: startBal,
+        danger_threshold: danger,
+        y_max: Math.ceil(allUp * 1.15 / 10000) * 10000,
+        y_min: 0,
+        shortfall_risk_pct: pid === 'student' ? 27 : 1,
+        points: pts
+      };
+    };
+
+    const renderChart = (data, n) => {
       const ch = $('#ch');
-      if (!ch) return;
-      ch.innerHTML = [0, 15000, 30000, 45000].map(v =>
-        `<line x1="50" x2="780" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--bd)"/>` +
-        `<text x="6" y="${Y(v) + 4}">${v / 1000}k</text>`
-      ).join('') +
-      B(1, '#6366f1') +
-      B(0.45, '#22d3ee') +
-      `<line x1="50" x2="780" y1="${Y(5000)}" y2="${Y(5000)}" stroke="var(--bad)" stroke-dasharray="6 5"/>` +
-      `<text x="620" y="${Y(5000) - 6}" style="fill:var(--bad)">Danger line ₹5,000</text>` +
-      `<polyline fill="none" stroke="var(--fg)" stroke-width="3" stroke-linecap="round" points="${P(m)}"/>` +
-      `<text x="50" y="292">Today</text>` +
-      `<text x="760" y="292">Day ${n}</text>`;
+      if (!ch || !data || !data.points) return;
 
-      const z = (5000 - m(n)) / (sp(n) / 1.64);
-      const p = Math.round(100 / (1 + Math.exp(-1.702 * z)));
+      const pts = data.points.slice(0, n + 1);
+      const yMax = data.y_max || Math.max(...pts.map(p => p.upper_90)) * 1.1;
+      const yMin = data.y_min || 0;
+      const danger = data.danger_threshold || 5000;
+
+      const Y = v => 270 - (Math.max(0, Math.min(yMax, v)) / (yMax || 1)) * 240;
+      const X = d => 50 + (d / n) * 720;
+
+      const defs = `
+        <defs>
+          <linearGradient id="chartGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#818cf8"/>
+            <stop offset="60%" stop-color="#6366f1"/>
+            <stop offset="100%" stop-color="#38bdf8"/>
+          </linearGradient>
+          <linearGradient id="band90Grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#6366f1" stop-opacity="0.30"/>
+            <stop offset="100%" stop-color="#6366f1" stop-opacity="0.05"/>
+          </linearGradient>
+          <linearGradient id="band50Grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.45"/>
+            <stop offset="100%" stop-color="#22d3ee" stop-opacity="0.10"/>
+          </linearGradient>
+        </defs>
+      `;
+
+      // Generate 4 clean Y-axis ticks
+      const yTicks = [0, yMax * 0.33, yMax * 0.66, yMax];
+      const grid = yTicks.map(v => {
+        const yPos = Y(v);
+        const label = v >= 100000 ? `${(v / 100000).toFixed(1)}L` : `${Math.round(v / 1000)}k`;
+        return `<line class="chart-grid-line" x1="50" x2="780" y1="${yPos}" y2="${yPos}"/>` +
+               `<text x="10" y="${yPos + 4}">${label}</text>`;
+      }).join('');
+
+      const dangerY = Y(danger);
+      const endPt = pts[pts.length - 1];
+      const isEndDanger = endPt.projected_balance < danger;
+
+      // Polyline points
+      const P = pts.map(p => `${X(p.day).toFixed(1)},${Y(p.projected_balance).toFixed(1)}`).join(' ');
+
+      // Bands
+      const pts90 = pts.map(p => `${X(p.day).toFixed(1)},${Y(p.upper_90).toFixed(1)}`).join(' ') + ' ' +
+                    [...pts].reverse().map(p => `${X(p.day).toFixed(1)},${Y(p.lower_90).toFixed(1)}`).join(' ');
+
+      const pts50 = pts.map(p => `${X(p.day).toFixed(1)},${Y(p.upper_50).toFixed(1)}`).join(' ') + ' ' +
+                    [...pts].reverse().map(p => `${X(p.day).toFixed(1)},${Y(p.lower_50).toFixed(1)}`).join(' ');
+
+      ch.innerHTML = defs + grid +
+        `<polygon class="band band-90" fill="url(#band90Grad)" points="${pts90}"/>` +
+        `<polygon class="band band-50" fill="url(#band50Grad)" points="${pts50}"/>` +
+        `<line class="chart-danger-line" x1="50" x2="780" y1="${dangerY}" y2="${dangerY}"/>` +
+        `<g class="chart-danger-badge" transform="translate(615, ${dangerY - 8})">
+          <rect x="-6" y="-12" width="160" height="20" rx="6" class="danger-badge-bg"/>
+          <text x="6" y="2" class="danger-badge-text">⚠️ Danger line ${inr(danger)}</text>
+        </g>` +
+        `<polyline class="chart-line" fill="none" stroke="url(#chartGrad)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" points="${P}"/>` +
+        `<circle cx="${X(0).toFixed(1)}" cy="${Y(pts[0].projected_balance).toFixed(1)}" r="5" class="chart-beacon-dot"/>` +
+        `<circle cx="${X(0).toFixed(1)}" cy="${Y(pts[0].projected_balance).toFixed(1)}" r="5" class="chart-beacon-ring"/>` +
+        `<circle cx="${X(n).toFixed(1)}" cy="${Y(endPt.projected_balance).toFixed(1)}" r="6" class="chart-target-dot ${isEndDanger ? 'dot-danger' : ''}"/>` +
+        `<circle cx="${X(n).toFixed(1)}" cy="${Y(endPt.projected_balance).toFixed(1)}" r="6" class="chart-target-ring ${isEndDanger ? 'ring-danger' : ''}"/>` +
+        `<text x="50" y="292" style="font-weight:600">Today (${inr(pts[0].projected_balance)})</text>` +
+        `<text x="660" y="292" style="font-weight:600">Day ${n} (${inr(endPt.projected_balance)})</text>` +
+        `<g id="ch-hover" style="opacity:0; transition:opacity .15s ease; pointer-events:none;">
+          <line id="ch-crosshair" class="chart-crosshair" y1="20" y2="270"/>
+          <circle id="ch-snap" class="chart-snap-dot" r="6"/>
+          <g id="ch-tooltip" class="chart-tooltip">
+            <rect width="150" height="50" rx="10"/>
+            <text id="ch-tt-day" x="12" y="19" fill="var(--mut)" style="font-size:11px;font-weight:600">Day 0</text>
+            <text id="ch-tt-val" x="12" y="38" fill="var(--fg)" style="font-size:15px;font-weight:700">₹0</text>
+          </g>
+        </g>`;
+
+      // Re-trigger line drawing animation
+      const poly = ch.querySelector('.chart-line');
+      if (poly) {
+        poly.style.animation = 'none';
+        void poly.offsetHeight;
+        poly.style.animation = 'drawPolyline 1.5s cubic-bezier(.16,1,.3,1) forwards';
+      }
+
+      // Mouse tracking
+      ch.onmousemove = e => {
+        const rect = ch.getBoundingClientRect();
+        const svgX = ((e.clientX - rect.left) / rect.width) * 800;
+        if (svgX < 50 || svgX > 780) {
+          const h = $('#ch-hover');
+          if (h) h.style.opacity = '0';
+          return;
+        }
+
+        const d = Math.max(0, Math.min(n, Math.round(((svgX - 50) / 720) * n)));
+        const pt = pts[d];
+        if (!pt) return;
+
+        const cx = X(d);
+        const cy = Y(pt.projected_balance);
+        const val = pt.projected_balance;
+
+        const h = $('#ch-hover');
+        const chCross = $('#ch-crosshair');
+        const chSnap = $('#ch-snap');
+        const chTt = $('#ch-tooltip');
+        const ttDay = $('#ch-tt-day');
+        const ttVal = $('#ch-tt-val');
+
+        if (h && chCross && chSnap && chTt && ttDay && ttVal) {
+          h.style.opacity = '1';
+          chCross.setAttribute('x1', cx);
+          chCross.setAttribute('x2', cx);
+          chSnap.setAttribute('cx', cx);
+          chSnap.setAttribute('cy', cy);
+
+          ttDay.textContent = d === 0 ? 'Today (Day 0)' : `Day ${d} projected`;
+          ttVal.textContent = inr(val);
+          ttVal.setAttribute('fill', val < danger ? 'var(--bad)' : val < danger * 2 ? 'var(--warn)' : 'var(--ok)');
+
+          const ttX = cx > 620 ? cx - 160 : cx + 14;
+          const ttY = Math.max(25, Math.min(215, cy - 25));
+          chTt.setAttribute('transform', `translate(${ttX}, ${ttY})`);
+        }
+      };
+
+      ch.onmouseleave = () => {
+        const h = $('#ch-hover');
+        if (h) h.style.opacity = '0';
+      };
+
+      // Calculate risk for this horizon
+      const spreadN = Math.max(1, endPt.upper_90 - endPt.projected_balance);
+      const zN = (danger - endPt.projected_balance) / (spreadN / 1.645);
+      const riskN = Math.max(1, Math.min(99, Math.round(100 / (1 + Math.exp(-1.702 * Math.min(5, Math.max(-5, zN)))))));
 
       const fp = $('#fp');
       if (fp) {
         fp.innerHTML = `
-          <h3>Shortfall risk</h3>
-          <p><b class="${p > 50 ? 'bad' : p > 20 ? 'warn' : 'ok'}" style="font:600 36px var(--hd)">${p}%</b> chance your balance is below ₹5,000 by day ${n}.</p>
-          <p class="cat">Shaded bands show the likely range (50% and 90%).</p>
+          <h3>Shortfall Risk Evaluation</h3>
+          <p><b class="${riskN > 50 ? 'bad' : riskN > 20 ? 'warn' : 'ok'}" style="font:600 36px var(--hd)">${riskN}%</b> chance ${data.user_name || activePersona.name}'s balance falls below ${inr(danger)} by day ${n}.</p>
+          <p class="cat">Computed from ${pts.length - 1}-day projected cash flow with 50% and 90% confidence bands.</p>
         `;
       }
 
       document.querySelectorAll('#sg button').forEach(b => b.classList.toggle('on', +b.dataset.n === n));
     };
 
+    // Horizon click handlers
     const sg = $('#sg');
     if (sg) {
-      sg.onclick = e => e.target.dataset.n && draw(+e.target.dataset.n);
+      sg.onclick = e => {
+        const targetBtn = e.target.closest('button[data-n]');
+        if (targetBtn && trajectoryData) {
+          activeHorizon = +targetBtn.dataset.n;
+          renderChart(trajectoryData, activeHorizon);
+        }
+      };
     }
-    draw(60);
+
+    // Fetch dynamic trajectory from backend
+    try {
+      trajectoryData = await apiFetch(`/forecast/trajectory?days=90`, { headers: authHeaders() });
+    } catch (err) {
+      console.warn('Could not fetch /forecast/trajectory, using dynamic persona fallback:', err.message);
+      trajectoryData = generateFallbackTrajectory(90);
+    }
+
+    if (!trajectoryData || !trajectoryData.points || !trajectoryData.points.length) {
+      trajectoryData = generateFallbackTrajectory(90);
+    }
+
+    renderChart(trajectoryData, activeHorizon);
 
     // Fetch and populate the backend predictions table, liquidity stress test, and backtesting
     try {
@@ -1131,15 +1351,21 @@ const PAGES = {
 
         <section class="panel glass">
           <h3>5-Factor Breakdown</h3>
-          ${(scoreData.components || []).map(c => `
-            <div class="imp">
-              <span><b>${c.name}</b><br><small class="cat">${c.value}</small></span>
-              <span class="ax">
-                <i data-v="${c.score}" style="left:0;background:${c.score >= c.max_score * 0.7 ? 'var(--ok)' : c.score >= c.max_score * 0.4 ? 'var(--warn)' : 'var(--bad)'}"></i>
-              </span>
-              <b class="${c.score >= c.max_score * 0.7 ? 'ok' : 'warn'}">${c.score.toFixed(1)} <small>/ ${c.max_score.toFixed(0)}</small></b>
-            </div>
-          `).join('')}
+          ${(scoreData.components || []).map(c => {
+            const maxVal = c.max_score || 1;
+            const pct = Math.max(2, Math.min(100, (c.score / maxVal) * 100));
+            const color = c.score >= maxVal * 0.7 ? 'var(--ok)' : c.score >= maxVal * 0.4 ? 'var(--warn)' : 'var(--bad)';
+            const cls = c.score >= maxVal * 0.7 ? 'ok' : c.score >= maxVal * 0.4 ? 'warn' : 'bad';
+            return `
+              <div class="imp">
+                <span><b>${c.name}</b><br><small class="cat">${c.value}</small></span>
+                <span class="ax" title="${pct.toFixed(1)}% (${c.score.toFixed(1)}/${c.max_score.toFixed(0)})">
+                  <i data-w="${pct.toFixed(1)}" style="width:0%; background:${color};"></i>
+                </span>
+                <b class="${cls}">${c.score.toFixed(1)} <small>/ ${c.max_score.toFixed(0)}</small></b>
+              </div>
+            `;
+          }).join('')}
         </section>
 
         ${personality ? `
@@ -1256,10 +1482,17 @@ const PAGES = {
       `);
 
       countUp(scoreData.total_score);
+
+      // Smoothly animate each bar from 0% (beginning) to its exact score length
       requestAnimationFrame(() => {
-        document.querySelectorAll('.imp i').forEach(i => {
-          i.style.width = Math.min(100, Math.max(5, (+$('#sn').textContent || 80))) + '%';
-        });
+        setTimeout(() => {
+          $$('.imp .ax i').forEach(el => {
+            const targetW = el.dataset.w;
+            if (targetW) {
+              el.style.width = targetW + '%';
+            }
+          });
+        }, 50);
       });
     } catch (err) {
       main.innerHTML = page(`<section class="panel glass"><h3>Error loading score</h3><p class="cat">${err.message}</p></section>`);

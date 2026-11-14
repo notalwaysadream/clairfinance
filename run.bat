@@ -22,11 +22,11 @@ echo ==================================================
 
 REM 1. Detect Python
 set "PY_CMD="
-python --version >nul 2>&1
+python -c "import sys; sys.exit(0)" >nul 2>&1
 if !errorlevel! equ 0 (
     set "PY_CMD=python"
 ) else (
-    py -3 --version >nul 2>&1
+    py -3 -c "import sys; sys.exit(0)" >nul 2>&1
     if !errorlevel! equ 0 (
         set "PY_CMD=py -3"
     )
@@ -42,7 +42,15 @@ if "%PY_CMD%"=="" (
 
 echo ✅ Found Python: %PY_CMD%
 
-REM 2. Create virtual environment if missing
+REM 2. Clean invalid Unix/Mac venv if copied across platforms
+if exist "%VENV_DIR%" (
+    if not exist "%VENV_DIR%\Scripts\python.exe" (
+        echo ⚠️ Detected non-Windows virtual environment. Cleaning up for Windows rebuild...
+        rmdir /s /q "%VENV_DIR%"
+    )
+)
+
+REM 3. Create virtual environment if missing
 if not exist "%VENV_DIR%\Scripts\python.exe" (
     echo 📦 Creating virtual environment at backend\venv...
     %PY_CMD% -m venv "%VENV_DIR%"
@@ -51,23 +59,34 @@ if not exist "%VENV_DIR%\Scripts\python.exe" (
         pause
         exit /b 1
     )
-    echo 📦 Upgrading pip and installing required dependencies...
-    "%VENV_DIR%\Scripts\python.exe" -m pip install --upgrade pip
+    echo 📦 Upgrading pip...
+    "%VENV_DIR%\Scripts\python.exe" -m pip install --upgrade pip >nul 2>&1
+)
+
+REM 4. Verify / Install Dependencies
+"%VENV_DIR%\Scripts\python.exe" -c "import fastapi, uvicorn, sqlalchemy, pandas, sklearn" >nul 2>&1
+if !errorlevel! neq 0 (
+    echo 📦 Installing backend dependencies...
     if exist "%BACKEND_DIR%\requirements.txt" (
+        echo Installing from requirements.txt...
         "%VENV_DIR%\Scripts\pip.exe" install -r "%BACKEND_DIR%\requirements.txt"
+        if !errorlevel! neq 0 (
+            echo ⚠️ Some pinned dependencies could not be installed. Falling back to core packages...
+            "%VENV_DIR%\Scripts\pip.exe" install fastapi "uvicorn[standard]" sqlalchemy aiosqlite python-multipart pydantic python-dotenv pandas numpy scipy scikit-learn httpx "python-jose[cryptography]" passlib greenlet google-genai
+        )
     ) else (
         echo requirements.txt not found. Installing core packages...
         "%VENV_DIR%\Scripts\pip.exe" install fastapi "uvicorn[standard]" sqlalchemy aiosqlite python-multipart pydantic python-dotenv pandas numpy scipy scikit-learn httpx "python-jose[cryptography]" passlib greenlet google-genai
     )
 )
 
-REM 3. Generate test statement datasets if missing
+REM 5. Generate test statement datasets if missing
 if not exist "%DATA_DIR%\salaried_transactions.csv" (
     echo 📊 Generating synthetic 12-month test statement datasets...
     "%VENV_DIR%\Scripts\python.exe" "%ROOT_DIR%scripts\generate_test_data.py" --persona all --output-dir "%DATA_DIR%"
 )
 
-REM 4. Environment config
+REM 6. Environment config
 if not exist "%BACKEND_DIR%\.env" (
     if exist "%BACKEND_DIR%\.env.example" (
         echo ⚙️ Creating backend\.env from .env.example...
@@ -75,23 +94,23 @@ if not exist "%BACKEND_DIR%\.env" (
     )
 )
 
-REM 5. Pre-seed DB
+REM 7. Initialize Database and Seed Personas
 echo 🌱 Ensuring database and test personas are seeded...
-set "PYTHONPATH=%BACKEND_DIR%"
-"%VENV_DIR%\Scripts\python.exe" -c "import asyncio; from app.database import AsyncSessionLocal, engine, Base; from app.routers.personas import seed_all_personas; async def init(): async with engine.begin() as conn: await conn.run_sync(Base.metadata.create_all); async with AsyncSessionLocal() as session: await seed_all_personas(session); asyncio.run(init())" 2>nul
+"%VENV_DIR%\Scripts\python.exe" "%ROOT_DIR%scripts\init_db.py"
 
-REM 6. Start FastAPI Backend (Port 8000)
+REM 8. Start FastAPI Backend (Port 8000)
 echo 🚀 Starting FastAPI Backend on http://localhost:8000...
-start "ClairFinance Backend (Port 8000)" /D "%BACKEND_DIR%" "%VENV_DIR%\Scripts\python.exe" -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+start "ClairFinance Backend (Port 8000)" cmd /k "cd /d "%BACKEND_DIR%" && set PYTHONPATH=%BACKEND_DIR% && "%VENV_DIR%\Scripts\python.exe" -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
-REM 7. Start Frontend Web Server (Port 3000)
+REM 9. Start Frontend Web Server (Port 3000)
 echo 🎨 Starting Frontend Server on http://localhost:3000...
-start "ClairFinance Frontend (Port 3000)" /D "%ROOT_DIR%" "%VENV_DIR%\Scripts\python.exe" -m http.server 3000 --directory "%FRONTEND_DIR%"
+start "ClairFinance Frontend (Port 3000)" cmd /k "cd /d "%ROOT_DIR%" && "%VENV_DIR%\Scripts\python.exe" -m http.server 3000 --directory "%FRONTEND_DIR%""
 
-REM 8. Wait for services and open browser
-echo ⏳ Initializing services...
-timeout /t 3 /nobreak >nul
+REM 10. Wait for Backend to become healthy before opening browser
+echo ⏳ Waiting for backend health check...
+"%VENV_DIR%\Scripts\python.exe" "%ROOT_DIR%scripts\wait_for_backend.py" "http://127.0.0.1:8000/api/health"
 
+REM 11. Open Web Browser
 set "TARGET_URL=http://localhost:3000"
 echo 🌐 Opening web browser at %TARGET_URL%...
 start %TARGET_URL%
@@ -118,5 +137,10 @@ pause >nul
 echo 🛑 Stopping ClairFinance services...
 taskkill /FI "WINDOWTITLE eq ClairFinance Backend (Port 8000)*" /F >nul 2>&1
 taskkill /FI "WINDOWTITLE eq ClairFinance Frontend (Port 3000)*" /F >nul 2>&1
+
+REM Also free up ports 8000 and 3000 if still held
+for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr :8000') do taskkill /F /PID %%a >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr :3000') do taskkill /F /PID %%a >nul 2>&1
+
 echo ✅ ClairFinance stopped cleanly. Goodbye!
 exit /b 0

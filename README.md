@@ -75,10 +75,11 @@ flowchart TD
    - Uses Isolation Forest and Category-Specific Z-Scores to flag irregular spending spikes.
    - **Recurring Exemption Rule**: Recurring commitments (e.g. house rent, home loan EMI, SIP investments, society maintenance) are strictly exempted (`anomaly_score = 0.0`) so predictable expenses are never flagged as anomalies.
 
-4. **Interactive Cash Flow Forecast & Time Machine Backtest**:
-   - **Interactive Projection Graph**: Features 30, 60, and 90-day horizon switchers, shaded 50% and 90% confidence bands (cyan and purple), and a prominent ₹5,000 Danger Line threshold.
+4. **Interactive Animated Cash Flow Forecast & Time Machine Backtest**:
+   - **Dynamic Animated Projection Graph**: Features smooth SVG stroke drawing animation, glowing radar beacons at start and end points, animated pulsating danger threshold line with warning badge, and interactive hover crosshairs with magnetic snap tooltips.
+   - **Interactive Horizon Switchers**: Instant 30, 60, and 90-day horizons with animated transition of shaded 50% and 90% confidence bands.
    - **Shortfall Risk Calculator**: Evaluates exact statistical probability of breaching minimum safety buffers.
-   - **Financial Time Machine**: Backtests predictions against historical data (Months 1–9 training &rarr; Months 10–12 verification) and displays empirical accuracy percentages and MAPE.
+   - **Financial Time Machine**: Backtests predictions against historical data (Months 1–9 training → Months 10–12 verification) and displays empirical accuracy percentages and MAPE.
 
 5. **Tools & AI Advisor ("What-If Simulator")**:
    - **What-If Simulator ("Can I Afford This?")**: Evaluates proposed purchases or loan EMIs against projected cash flow, DTI ratio, and emergency buffers using Google Gemini live contextual memory.
@@ -173,20 +174,7 @@ pip install -r backend\requirements.txt
 ### 2. Generate Demo Datasets & Seed Database
 ```bash
 python scripts/generate_test_data.py --persona all --output-dir data
-
-python -c "
-import asyncio
-from app.database import AsyncSessionLocal, engine, Base
-from app.routers.personas import seed_all_personas
-
-async def init():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    async with AsyncSessionLocal() as session:
-        await seed_all_personas(session)
-
-asyncio.run(init())
-"
+python scripts/init_db.py
 ```
 
 ### 3. Start Backend & Frontend
